@@ -22,6 +22,20 @@
 
 ---
 
+## High-Level Architecture
+
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   React Client  │ ←→  │   Flask Server   │ ←→  │  SLAM Engine    │
+│  (TypeScript)   │     │    (Python)      │     │   (Python)      │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+         ↑                       ↑                        ↑
+         │                       │                        │
+         │                       ↓                        ↓
+         │              ┌──────────────────┐     ┌─────────────────┐
+         └──────────→   │    PostgreSQL    │     │     MinIO       │
+                        │    (Database)    │     │  (File Storage) │
+                        └──────────────────┘     └─────────────────┘
+                      
 ## 🌟 Features
 
 ### Core Capabilities
@@ -58,6 +72,25 @@
   - NumPy/SciPy optimization
   - CUDA acceleration support
   - Extensible algorithm interface
+##
+
+## Dataset Processing
+```mermaid
+graph TD
+    A[Upload Dataset] --> B[Validate Format]
+    B --> C[Convert to Internal Format]
+    C --> D[Store in MinIO]
+    D --> E[Create Database Entry]
+```
+## SLAM Execution
+
+```
+graph TD
+    A[Configure Algorithm] --> B[Initialize Engine]
+    B --> C[Process Frames]
+    C --> D[Update Visualization]
+    D --> E[Store Results]
+```
 
 ## 🚀 Getting Started
 
