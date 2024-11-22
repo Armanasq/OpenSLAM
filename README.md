@@ -229,9 +229,8 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 
 ## 📬 Contact
 
-- Project Lead: [Your Name](mailto:your.email@example.com)
-- Website: [openslam.org](https://openslam.org) (Coming Soon)
-- Twitter: [@OpenSLAM](https://twitter.com/OpenSLAM)
+- Project Lead: [Arman Asgharpoor](mailto:a.asgharpoor1993@gmail.com)
+- Website: [openslam.org](https://openslam.ai) (Coming Soon)
 
 ---
 
@@ -239,8 +238,7 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 
 **OpenSLAM is a community effort. Stars ⭐ and contributions are welcome!**
 
-[Report Bug](https://github.com/yourusername/openslam/issues) •
-[Request Feature](https://github.com/yourusername/openslam/issues) •
-[Join Discord](https://discord.gg/openslam)
+[Report Bug](https://github.com/armanasq/openslam/issues) •
+[Request Feature](https://github.com/armanasq/openslam/issues) •
 
 </div>
