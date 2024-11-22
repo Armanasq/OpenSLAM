@@ -264,7 +264,7 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 ## 📬 Contact
 
 - Project Lead: [Arman Asgharpoor](mailto:a.asgharpoor1993@gmail.com)
-- Website: [openslam.org](https://openslam.ai) (Coming Soon)
+- Website: [openslam.ai](https://openslam.ai) (Coming Soon)
 
 ---
 
