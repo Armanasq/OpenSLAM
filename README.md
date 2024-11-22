@@ -16,7 +16,7 @@
 [Contributing](#contributing) •
 [Roadmap](#roadmap)
 
-*⚠️ OpenSLAM is currently under active development. First release expected Q2 2024. Star the repository to stay updated!*
+*⚠️ OpenSLAM is currently under active development. First release expected Q4 2024. Star the repository to stay updated!*
 
 </div>
 
@@ -186,20 +186,20 @@ We welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING
 
 ## 📅 Roadmap
 
-### Phase 1: Foundation (Q2 2024)
+### Phase 1: Foundation (Q3 2024)
 - [x] Core architecture design
 - [x] Basic frontend implementation
 - [x] Backend API structure
 - [ ] Basic SLAM pipeline
 - [ ] Initial documentation
 
-### Phase 2: Core Features (Q3 2024)
+### Phase 2: Core Features (Q4 2024)
 - [ ] Visual SLAM implementation
 - [ ] LiDAR SLAM integration
 - [ ] Real-time visualization
 - [ ] Dataset management
 
-### Phase 3: Advanced Features (Q4 2024)
+### Phase 3: Advanced Features (Q1 2025)
 - [ ] Multi-sensor fusion
 - [ ] Loop closure detection
 - [ ] Performance optimization
