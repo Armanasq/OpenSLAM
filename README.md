@@ -3,7 +3,7 @@
 <div align="center">
 
 [![Under Development](https://img.shields.io/badge/Status-Under%20Development-yellow.svg)](https://github.com/armanasq/openslam)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT%202.0-red.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/React-18.0%2B-61dafb)](https://reactjs.org/)
 [![Flask](https://img.shields.io/badge/Flask-2.0%2B-black)](https://flask.palletsprojects.com/)
