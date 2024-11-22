@@ -84,7 +84,7 @@ graph TD
 ```
 ## SLAM Execution
 
-```
+```mermaid
 graph TD
     A[Configure Algorithm] --> B[Initialize Engine]
     B --> C[Process Frames]
