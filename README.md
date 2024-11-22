@@ -9,6 +9,7 @@
 [![Flask](https://img.shields.io/badge/Flask-2.0%2B-black)](https://flask.palletsprojects.com/)
 
 **OpenSLAM is an open-source platform democratizing Simultaneous Localization and Mapping (SLAM) research and development.**
+![image](https://github.com/user-attachments/assets/463e9d02-4258-4969-b70b-09e0e6ff4493)
 
 [Features](#features) •
 [Getting Started](#getting-started) •
