@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Under Development](https://img.shields.io/badge/Status-Under%20Development-yellow.svg)](https://github.com/yourusername/openslam)
+[![Under Development](https://img.shields.io/badge/Status-Under%20Development-yellow.svg)](https://github.com/armanasq/openslam)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/React-18.0%2B-61dafb)](https://reactjs.org/)
@@ -116,7 +116,7 @@ npm>=7.0.0
 ### Installation
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/openslam.git
+git clone https://github.com/armanasq/openslam.git
 cd openslam
 
 # Backend setup
@@ -176,7 +176,7 @@ We welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING
 ### Development Setup
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
+3. Make  changes
 4. Submit a pull request
 
 ### Code Standards
