@@ -1,0 +1,102 @@
+{
+  "name": "VINS-Mono",
+  "version": "1.0.0",
+  "category": "Visual-Inertial SLAM",
+  "description": "Robust and versatile monocular visual-inertial state estimator with loop closure and relocalization capabilities.",
+  "author": "Tong Qin et al.",
+  "email": "qintong@ust.hk",
+  "license": "GPLv3",
+  "paper_url": "https://arxiv.org/abs/1708.03852",
+  "repository": "https://github.com/HKUST-Aerial-Robotics/VINS-Mono",
+  "tags": ["monocular", "imu", "loop-closure", "relocalization", "visual-inertial"],
+  "supported_sensors": ["monocular_camera", "imu"],
+  "datasets_tested": ["EuRoC", "KITTI", "Custom"],
+  "performance": {
+    "accuracy": 93,
+    "speed": 85,
+    "robustness": 90
+  },
+  "requirements": {
+    "opencv": ">=3.0.0",
+    "eigen3": ">=3.3.0",
+    "ceres": ">=1.14.0",
+    "dbow2": ">=1.0.0"
+  },
+  "parameters": {
+    "max_cnt": {
+      "type": "int",
+      "default": 150,
+      "min": 50,
+      "max": 300,
+      "description": "Maximum number of feature points"
+    },
+    "min_dist": {
+      "type": "int",
+      "default": 30,
+      "min": 10,
+      "max": 50,
+      "description": "Minimum distance between features"
+    },
+    "freq": {
+      "type": "int",
+      "default": 10,
+      "min": 5,
+      "max": 30,
+      "description": "Frequency of publish"
+    },
+    "f_threshold": {
+      "type": "float",
+      "default": 1.0,
+      "min": 0.1,
+      "max": 5.0,
+      "description": "Ransac threshold for fundamental matrix"
+    },
+    "show_track": {
+      "type": "bool",
+      "default": true,
+      "description": "Show tracking visualization"
+    },
+    "equalize": {
+      "type": "bool",
+      "default": true,
+      "description": "Apply histogram equalization"
+    },
+    "fisheye": {
+      "type": "bool",
+      "default": false,
+      "description": "Use fisheye camera model"
+    },
+    "loop_closure": {
+      "type": "bool",
+      "default": true,
+      "description": "Enable loop closure detection"
+    },
+    "load_previous_pose_graph": {
+      "type": "bool",
+      "default": false,
+      "description": "Load previous pose graph"
+    }
+  },
+  "input_format": {
+    "image": "numpy array (H, W) grayscale image",
+    "imu": "numpy array (6,) [ax, ay, az, gx, gy, gz] in m/s² and rad/s",
+    "timestamp": "float (seconds since start)",
+    "camera_info": "dict with 'K' (3x3 intrinsic matrix), 'D' (distortion coeffs)"
+  },
+  "output_format": {
+    "pose": "numpy array (4, 4) transformation matrix (world to IMU)",
+    "trajectory": "list of (4, 4) transformation matrices",
+    "velocity": "numpy array (3,) linear velocity in world frame",
+    "bias": "dict with 'acc_bias' and 'gyr_bias' numpy arrays",
+    "features": "list of tracked feature points",
+    "loop_closures": "list of detected loop closure pairs"
+  },
+  "computational_requirements": {
+    "cpu_cores": 2,
+    "memory_gb": 1.5,
+    "gpu_required": false
+  },
+  "real_time_capable": true,
+  "initialization_frames": 50,
+  "coordinate_system": "right_handed_z_up"
+}

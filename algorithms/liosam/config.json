@@ -1,0 +1,161 @@
+{
+  "name": "LIO-SAM",
+  "version": "1.0.0",
+  "category": "LiDAR-Inertial SLAM",
+  "description": "Tightly-coupled Lidar Inertial Odometry via Smoothing and Mapping with factor graph optimization and loop closure detection.",
+  "author": "Tixiao Shan et al.",
+  "email": "tixiao@cmu.edu",
+  "license": "BSD-3-Clause",
+  "paper_url": "https://arxiv.org/abs/2007.00258",
+  "repository": "https://github.com/TixiaoShan/LIO-SAM",
+  "tags": ["lidar", "imu", "factor-graph", "loop-closure", "mapping"],
+  "supported_sensors": ["3d_lidar", "imu", "gps"],
+  "datasets_tested": ["KITTI", "Custom Outdoor"],
+  "performance": {
+    "accuracy": 97,
+    "speed": 82,
+    "robustness": 94
+  },
+  "requirements": {
+    "pcl": ">=1.8.0",
+    "gtsam": ">=4.0.0",
+    "opencv": ">=3.0.0",
+    "eigen3": ">=3.3.0"
+  },
+  "parameters": {
+    "n_scan": {
+      "type": "int",
+      "default": 16,
+      "min": 8,
+      "max": 128,
+      "description": "Number of LiDAR scan lines"
+    },
+    "horizon_scan": {
+      "type": "int",
+      "default": 1800,
+      "min": 900,
+      "max": 3600,
+      "description": "Number of points per scan line"
+    },
+    "ang_res_x": {
+      "type": "float",
+      "default": 0.2,
+      "min": 0.1,
+      "max": 1.0,
+      "description": "Horizontal angular resolution (degrees)"
+    },
+    "ang_res_y": {
+      "type": "float",
+      "default": 2.0,
+      "min": 0.5,
+      "max": 5.0,
+      "description": "Vertical angular resolution (degrees)"
+    },
+    "ang_bottom": {
+      "type": "float",
+      "default": 15.0,
+      "min": 0.0,
+      "max": 45.0,
+      "description": "Bottom angle (degrees)"
+    },
+    "ground_scan_ind": {
+      "type": "int",
+      "default": 7,
+      "min": 3,
+      "max": 15,
+      "description": "Ground scan index"
+    },
+    "sensor_mount_angle": {
+      "type": "float",
+      "default": 0.0,
+      "min": -45.0,
+      "max": 45.0,
+      "description": "Sensor mount angle (degrees)"
+    },
+    "segment_theta": {
+      "type": "float",
+      "default": 1.0472,
+      "min": 0.5,
+      "max": 2.0,
+      "description": "Segmentation threshold angle (radians)"
+    },
+    "segment_valid_point_num": {
+      "type": "int",
+      "default": 5,
+      "min": 3,
+      "max": 10,
+      "description": "Minimum points for valid segment"
+    },
+    "segment_valid_line_num": {
+      "type": "int",
+      "default": 3,
+      "min": 2,
+      "max": 8,
+      "description": "Minimum lines for valid segment"
+    },
+    "edge_threshold": {
+      "type": "float",
+      "default": 0.1,
+      "min": 0.05,
+      "max": 0.5,
+      "description": "Edge feature threshold"
+    },
+    "surf_threshold": {
+      "type": "float",
+      "default": 0.1,
+      "min": 0.05,
+      "max": 0.5,
+      "description": "Surface feature threshold"
+    },
+    "edge_feature_min_valid_num": {
+      "type": "int",
+      "default": 10,
+      "min": 5,
+      "max": 50,
+      "description": "Minimum valid edge features"
+    },
+    "surf_feature_min_valid_num": {
+      "type": "int",
+      "default": 100,
+      "min": 50,
+      "max": 500,
+      "description": "Minimum valid surface features"
+    },
+    "odom_gps_covariance": {
+      "type": "float",
+      "default": 2.0,
+      "min": 0.1,
+      "max": 10.0,
+      "description": "GPS covariance for odometry"
+    },
+    "pose_gps_covariance": {
+      "type": "float",
+      "default": 1.0,
+      "min": 0.1,
+      "max": 5.0,
+      "description": "GPS covariance for pose"
+    }
+  },
+  "input_format": {
+    "pointcloud": "numpy array (N, 4) [x, y, z, intensity] or (N, 3) [x, y, z]",
+    "imu": "numpy array (6,) [ax, ay, az, gx, gy, gz] in m/s² and rad/s",
+    "gps": "numpy array (3,) [latitude, longitude, altitude] (optional)",
+    "timestamp": "float (seconds since start)"
+  },
+  "output_format": {
+    "pose": "numpy array (4, 4) transformation matrix (world to LiDAR)",
+    "trajectory": "list of (4, 4) transformation matrices",
+    "map": "numpy array (M, 3) global point cloud map",
+    "keyframes": "list of keyframe poses and timestamps",
+    "loop_closures": "list of detected loop closure constraints",
+    "imu_bias": "dict with 'acc_bias' and 'gyr_bias' numpy arrays"
+  },
+  "computational_requirements": {
+    "cpu_cores": 4,
+    "memory_gb": 4,
+    "gpu_required": false
+  },
+  "real_time_capable": true,
+  "initialization_frames": 10,
+  "coordinate_system": "right_handed_z_up"
+}

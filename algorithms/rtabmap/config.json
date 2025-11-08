@@ -1,0 +1,46 @@
+{
+  "name": "RTAB-Map",
+  "version": "0.21.0",
+  "category": "RGB-D SLAM",
+  "description": "Real-Time Appearance-Based Mapping for RGB-D and Stereo cameras",
+  "author": "Mathieu Labbé",
+  "license": "BSD",
+  "language": "C++",
+  "tags": ["RGB-D", "Loop Closure", "Multi-session", "ROS"],
+  "supported_sensors": ["RGB-D Camera", "Stereo Camera", "LiDAR"],
+  "datasets_tested": ["TUM RGB-D", "KITTI", "Custom"],
+  "paper_url": "https://introlab.3it.usherbrooke.ca/mediawiki-introlab/images/7/7a/Labbe14-IROS.pdf",
+  "parameters": {
+    "memory_threshold": {
+      "type": "int",
+      "default": 100,
+      "description": "Maximum number of locations in working memory"
+    },
+    "similarity_threshold": {
+      "type": "float",
+      "default": 0.2,
+      "description": "Loop closure similarity threshold"
+    },
+    "max_features": {
+      "type": "int",
+      "default": 400,
+      "description": "Maximum number of features per image"
+    },
+    "depth_max": {
+      "type": "float",
+      "default": 4.0,
+      "description": "Maximum depth for point cloud generation (meters)"
+    },
+    "voxel_size": {
+      "type": "float",
+      "default": 0.01,
+      "description": "Voxel size for point cloud downsampling (meters)"
+    }
+  },
+  "requirements": [
+    "opencv-python>=4.0.0",
+    "numpy>=1.18.0",
+    "open3d>=0.13.0",
+    "scikit-learn>=0.24.0"
+  ]
+}

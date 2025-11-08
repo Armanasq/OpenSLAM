@@ -1,0 +1,93 @@
+{
+  "name": "ORB-SLAM3",
+  "version": "1.0.0",
+  "category": "Visual-Inertial SLAM",
+  "description": "Real-time SLAM library for Monocular, Stereo and RGB-D cameras with IMU support. Accurate and robust visual-inertial SLAM system.",
+  "author": "Carlos Campos et al.",
+  "email": "ccampos@unizar.es",
+  "license": "GPLv3",
+  "paper_url": "https://arxiv.org/abs/2007.11898",
+  "repository": "https://github.com/UZ-SLAMLab/ORB_SLAM3",
+  "tags": ["visual", "slam", "imu", "real-time", "monocular", "stereo", "rgbd"],
+  "supported_sensors": ["monocular_camera", "stereo_camera", "rgbd_camera", "imu"],
+  "datasets_tested": ["KITTI", "EuRoC", "TUM", "TUM-VI"],
+  "performance": {
+    "accuracy": 95,
+    "speed": 88,
+    "robustness": 92
+  },
+  "requirements": {
+    "opencv": ">=4.0.0",
+    "eigen3": ">=3.3.0",
+    "pangolin": ">=0.6.0",
+    "g2o": ">=20200410"
+  },
+  "parameters": {
+    "max_features": {
+      "type": "int",
+      "default": 1000,
+      "min": 500,
+      "max": 5000,
+      "description": "Maximum number of ORB features to extract per frame"
+    },
+    "scale_factor": {
+      "type": "float",
+      "default": 1.2,
+      "min": 1.1,
+      "max": 2.0,
+      "description": "Scale factor between levels in the scale pyramid"
+    },
+    "n_levels": {
+      "type": "int",
+      "default": 8,
+      "min": 4,
+      "max": 12,
+      "description": "Number of levels in the scale pyramid"
+    },
+    "ini_th_fast": {
+      "type": "int",
+      "default": 20,
+      "min": 5,
+      "max": 50,
+      "description": "Initial FAST threshold"
+    },
+    "min_th_fast": {
+      "type": "int",
+      "default": 7,
+      "min": 3,
+      "max": 20,
+      "description": "Minimum FAST threshold"
+    },
+    "use_imu": {
+      "type": "bool",
+      "default": true,
+      "description": "Enable IMU integration"
+    },
+    "loop_closing": {
+      "type": "bool",
+      "default": true,
+      "description": "Enable loop closure detection"
+    }
+  },
+  "input_format": {
+    "image": "numpy array (H, W, 3) BGR or (H, W) grayscale",
+    "imu": "numpy array (6,) [ax, ay, az, gx, gy, gz] in m/s² and rad/s",
+    "timestamp": "float (seconds since start)",
+    "camera_info": "dict with 'K' (3x3 intrinsic matrix), 'D' (distortion coeffs)"
+  },
+  "output_format": {
+    "pose": "numpy array (4, 4) transformation matrix (world to camera)",
+    "trajectory": "list of (4, 4) transformation matrices",
+    "keyframes": "list of keyframe poses",
+    "map_points": "numpy array (N, 3) 3D map points",
+    "tracking_state": "string: SYSTEM_NOT_READY, NO_IMAGES_YET, NOT_INITIALIZED, OK, LOST"
+  },
+  "computational_requirements": {
+    "cpu_cores": 4,
+    "memory_gb": 2,
+    "gpu_required": false
+  },
+  "real_time_capable": true,
+  "initialization_frames": 30,
+  "coordinate_system": "right_handed_y_up"
+}

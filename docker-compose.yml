@@ -1,0 +1,50 @@
+version: "3.8"
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+      - "8007:8007"
+    volumes:
+      - ./backend:/app
+      - ./shared:/app/shared
+      - ../data:/app/data
+      - ./algorithms:/app/algorithms
+    environment:
+      - PYTHONPATH=/app
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+  code-server:
+    build:
+      context: ./code-server
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/home/coder/backend
+      - ./algorithms:/home/coder/algorithms
+      - ./shared:/home/coder/shared
+      - ../data:/home/coder/data
+      - code-server-config:/home/coder/.config
+      - code-server-data:/home/coder/.local/share/code-server
+    environment:
+      - PASSWORD=
+      - SUDO_PASSWORD=
+      - DEFAULT_WORKSPACE=/home/coder/algorithms
+    command: code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry /home/coder/algorithms
+    depends_on:
+      - backend
+volumes:
+  code-server-config:
+  code-server-data:

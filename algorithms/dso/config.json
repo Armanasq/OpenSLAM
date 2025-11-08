@@ -1,0 +1,40 @@
+{
+  "name": "DSO",
+  "version": "1.0.0",
+  "category": "Visual Odometry",
+  "description": "Direct Sparse Odometry - photometric visual odometry",
+  "author": "Jakob Engel et al.",
+  "license": "GPLv3",
+  "language": "C++",
+  "tags": ["Direct Method", "Sparse", "Photometric", "Monocular"],
+  "supported_sensors": ["Monocular Camera"],
+  "datasets_tested": ["TUM", "KITTI", "EuRoC"],
+  "paper_url": "https://arxiv.org/abs/1607.02565",
+  "parameters": {
+    "photometric_threshold": {
+      "type": "float",
+      "default": 7.0,
+      "description": "Photometric error threshold"
+    },
+    "gradient_threshold": {
+      "type": "float", 
+      "default": 8.0,
+      "description": "Gradient magnitude threshold"
+    },
+    "max_points": {
+      "type": "int",
+      "default": 2000,
+      "description": "Maximum number of points per frame"
+    },
+    "min_points": {
+      "type": "int",
+      "default": 500,
+      "description": "Minimum number of points per frame"
+    }
+  },
+  "requirements": [
+    "opencv-python>=4.0.0",
+    "numpy>=1.18.0",
+    "scipy>=1.5.0"
+  ]
+}
