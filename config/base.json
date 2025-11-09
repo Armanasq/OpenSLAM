@@ -1,0 +1,11 @@
+{
+  "server": {"backend_port": 8007, "backend_host": "0.0.0.0", "frontend_port": 3001, "code_server_port": 8080},
+  "urls": {"websocket_url": "ws://localhost:8007/ws", "api_base_url": "http://localhost:8007/api"},
+  "paths": {"algorithms_dir": "algorithms", "datasets_dir": "data", "shared_dir": "shared", "tools_dir": "tools", "backend_dir": "backend", "frontend_dir": "frontend", "config_dir": "config", "project_root": "."},
+  "formats": {"dataset_formats": ["KITTI", "EUROC", "TUM"], "date_format": "ISO8601", "sensor_types": ["image_0", "image_1", "image_2", "image_3", "velodyne"], "pose_files": ["pose.txt", "poses.txt"], "required_files": ["calib.txt", "times.txt"]},
+  "error_codes": {"VALIDATION": 1001, "NOT_FOUND": 1002, "EXECUTION": 1003, "CONFIG_ERROR": 1004, "PLUGIN_ERROR": 1005},
+  "message_types": {"DATASET_LOAD": "dataset_load", "ALGORITHM_RESULT": "algorithm_result", "CONFIG_UPDATE": "config_update", "PLUGIN_DISCOVERED": "plugin_discovered"},
+  "timeouts": {"websocket_timeout": 30, "api_timeout": 60},
+  "limits": {"max_upload_size": 104857600, "max_plugins": 50, "lidar_min_distance": 1.0, "lidar_max_distance": 80.0, "lidar_min_height": -3.0, "lidar_max_height": 5.0},
+  "code_server": {"password": "", "image": "codercom/code-server:latest"}
+}

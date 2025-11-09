@@ -1,0 +1,4 @@
+{
+  "server": {"backend_host": "127.0.0.1"},
+  "urls": {"websocket_url": "ws://127.0.0.1:8007/ws", "api_base_url": "http://127.0.0.1:8007/api"}
+}

@@ -36,8 +36,12 @@ const App = () => {
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
-  const initializeWebSocket = () => {
-    const ws = new WebSocket('ws://localhost:8007/ws');
+  const initializeWebSocket = async () => {
+    const Config = (await import('./config/loader')).default;
+    const config = new Config();
+    await config.load();
+    const wsUrl = config.get('urls.websocket_url');
+    const ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
       setIsConnected(true);
@@ -78,8 +82,12 @@ const App = () => {
   };
 
   const loadInitialData = async () => {
+    const Config = (await import('./config/loader')).default;
+    const config = new Config();
+    await config.load();
+    const apiBaseUrl = config.get('urls.api_base_url');
     try {
-      const response = await fetch('/api/datasets');
+      const response = await fetch(`${apiBaseUrl}/datasets`);
       if (response.ok) {
         const datasets = await response.json();
         if (datasets.length > 0) {
@@ -116,8 +124,12 @@ const App = () => {
   };
 
   const handleAlgorithmExecute = async (algorithmId, datasetId, parameters) => {
+    const Config = (await import('./config/loader')).default;
+    const config = new Config();
+    await config.load();
+    const apiBaseUrl = config.get('urls.api_base_url');
     try {
-      const response = await fetch('/api/execute-algorithm', {
+      const response = await fetch(`${apiBaseUrl}/execute-algorithm`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

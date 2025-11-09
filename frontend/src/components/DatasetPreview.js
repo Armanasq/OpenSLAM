@@ -16,13 +16,13 @@ const DatasetPreview = ({ dataset, onNotification }) => {
   const playIntervalRef = useRef(null);
 
   useEffect(() => {
-    if (dataset) {
+    if (dataset && dataset.id) {
       loadGroundTruth();
     }
   }, [dataset]);
 
   useEffect(() => {
-    if (dataset && (viewMode === 'lidar' || viewMode === 'combined')) {
+    if (dataset && dataset.id && (viewMode === 'lidar' || viewMode === 'combined')) {
       loadLidarData(selectedFrame);
     }
   }, [selectedFrame, dataset, viewMode, lidarResolution]);
@@ -52,39 +52,23 @@ const DatasetPreview = ({ dataset, onNotification }) => {
   const loadGroundTruth = async () => {
     if (!dataset?.metadata?.has_ground_truth) return;
     setLoading(true);
-    try {
-      const response = await fetch(`/api/datasets/${dataset.id}/ground-truth`);
-      if (response.ok) {
-        const data = await response.json();
-        setGroundTruth(data.trajectory);
-      } else {
-        onNotification('Failed to load ground truth data', 'error');
-      }
-    } catch (error) {
-      onNotification('Error loading ground truth', 'error');
-    } finally {
-      setLoading(false);
+    const response = await fetch(`/api/datasets/${dataset.id}/ground-truth`);
+    if (response.ok) {
+      const data = await response.json();
+      setGroundTruth(data.trajectory);
     }
+    setLoading(false);
   };
 
   const loadLidarData = async (frameId) => {
-    if (!dataset?.sensors?.includes('velodyne')) {
+    const lidarSensor = dataset?.sensors?.find(s => s === 'velodyne');
+    if (!lidarSensor) {
       return;
     }
-    
-    try {
-      const response = await fetch(`/api/datasets/${dataset.id}/lidar/${frameId}?resolution=${lidarResolution}`);
-      if (response.ok) {
-        const data = await response.json();
-        setLidarData(data);
-        console.log(`Frame ${frameId}: ${data.x?.length || 0} points loaded`);
-      } else {
-        onNotification(`Failed to load lidar data for frame ${frameId}`, 'error');
-        setLidarData(null);
-      }
-    } catch (error) {
-      onNotification(`Error loading lidar data for frame ${frameId}`, 'error');
-      setLidarData(null);
+    const response = await fetch(`/api/datasets/${dataset.id}/lidar/${frameId}?resolution=${lidarResolution}`);
+    if (response.ok) {
+      const data = await response.json();
+      setLidarData(data);
     }
   };
 

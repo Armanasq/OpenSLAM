@@ -1,0 +1,4 @@
+{
+  "server": {"backend_host": "0.0.0.0"},
+  "timeouts": {"websocket_timeout": 60, "api_timeout": 120}
+}

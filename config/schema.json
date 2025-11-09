@@ -1,0 +1,10 @@
+{
+  "server": {"type": "object", "required": ["backend_port", "backend_host", "frontend_port"], "properties": {"backend_port": {"type": "integer"}, "backend_host": {"type": "string"}, "frontend_port": {"type": "integer"}}},
+  "urls": {"type": "object", "required": ["websocket_url", "api_base_url"], "properties": {"websocket_url": {"type": "string"}, "api_base_url": {"type": "string"}}},
+  "paths": {"type": "object", "required": ["algorithms_dir", "datasets_dir", "shared_dir"], "properties": {"algorithms_dir": {"type": "string"}, "datasets_dir": {"type": "string"}, "shared_dir": {"type": "string"}}},
+  "formats": {"type": "object", "required": ["dataset_formats", "date_format"], "properties": {"dataset_formats": {"type": "array"}, "date_format": {"type": "string"}}},
+  "error_codes": {"type": "object", "additionalProperties": {"type": "integer"}},
+  "message_types": {"type": "object", "additionalProperties": {"type": "string"}},
+  "timeouts": {"type": "object", "properties": {"websocket_timeout": {"type": "integer"}, "api_timeout": {"type": "integer"}}},
+  "limits": {"type": "object", "properties": {"max_upload_size": {"type": "integer"}, "max_plugins": {"type": "integer"}}}
+}

@@ -13,9 +13,8 @@ const DatasetManager = ({ currentDataset, onDatasetSelect, onNotification, isDar
     loadDatasets();
   }, []);
   useEffect(() => {
-    if (selectedDataset) {
+    if (selectedDataset && selectedDataset.id) {
       if (selectedDataset.id === 'demo_00') {
-        // For demo dataset, use the dataset itself as details
         setDatasetDetails({ metadata: selectedDataset.metadata });
       } else {
         loadDatasetDetails(selectedDataset.id);
@@ -27,7 +26,8 @@ const DatasetManager = ({ currentDataset, onDatasetSelect, onNotification, isDar
     try {
       const response = await fetch('/api/datasets');
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.data || [];
         setDatasets(data);
         if (data.length > 0 && !selectedDataset) {
           setSelectedDataset(data[0]);
@@ -54,9 +54,11 @@ const DatasetManager = ({ currentDataset, onDatasetSelect, onNotification, isDar
     }
   };
   const handleDatasetSelect = (dataset) => {
-    setSelectedDataset(dataset);
-    onDatasetSelect(dataset);
-    setPreviewFrame(0);
+    if (dataset) {
+      setSelectedDataset(dataset);
+      onDatasetSelect(dataset);
+      setPreviewFrame(0);
+    }
   };
   const validateDataset = async (datasetId) => {
     try {
@@ -128,11 +130,12 @@ const DatasetManager = ({ currentDataset, onDatasetSelect, onNotification, isDar
         body: JSON.stringify({ path: loadPath })
       });
       if (response.ok) {
-        const newDataset = await response.json();
+        const result = await response.json();
+        const newDataset = result.data || result;
         setDatasets(prev => [...prev, newDataset]);
         setSelectedDataset(newDataset);
         onDatasetSelect(newDataset);
-        onNotification(`Dataset ${newDataset.name} loaded successfully`, 'success');
+        onNotification(`Dataset ${newDataset.name || newDataset.id} loaded successfully`, 'success');
         setLoadPath('');
       } else {
         const error = await response.json();
@@ -145,6 +148,24 @@ const DatasetManager = ({ currentDataset, onDatasetSelect, onNotification, isDar
     } finally {
       setLoading(false);
     }
+  };
+  const removeDataset = (datasetId) => {
+    const remaining = datasets.filter(d => d.id !== datasetId);
+    setDatasets(remaining);
+    if (selectedDataset && selectedDataset.id === datasetId) {
+      if (remaining.length > 0) {
+        setSelectedDataset(remaining[0]);
+        if (onDatasetSelect) {
+          onDatasetSelect(remaining[0]);
+        }
+      } else {
+        setSelectedDataset(null);
+        if (onDatasetSelect) {
+          onDatasetSelect(null);
+        }
+      }
+    }
+    onNotification('Dataset removed from list', 'success');
   };
   const renderDatasetList = () => (
     <div>
@@ -186,7 +207,7 @@ const DatasetManager = ({ currentDataset, onDatasetSelect, onNotification, isDar
             type="text"
             value={loadPath}
             onChange={(e) => setLoadPath(e.target.value)}
-            placeholder="Enter dataset path (e.g., /home/arman/project/SLAM/v1/data/00)"
+            placeholder="/home/arman/project/SLAM/v1/data/00"
             style={{
               padding: '8px 12px',
               border: `1px solid ${isDarkMode ? '#475569' : '#d1d5db'}`,
@@ -389,6 +410,31 @@ const DatasetManager = ({ currentDataset, onDatasetSelect, onNotification, isDar
                     )}
                   </div>
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeDataset(dataset.id);
+                  }}
+                  style={{
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: '500',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.background = '#dc2626';
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.background = '#ef4444';
+                  }}
+                >
+                  🗑️ Remove
+                </button>
               </div>
               
               <div style={{ 
