@@ -26,6 +26,21 @@ ws_connections = {}
 def root():
     return {'name': 'OpenSLAM', 'version': '2.0.0', 'status': 'running'}
 
+@app.post('/api/dataset/load')
+async def load_dataset(data: dict = Body(...)):
+    path_str = data.get('path')
+    name = data.get('name')
+    if not path_str or not name:
+        raise HTTPException(400, 'path and name required')
+    dataset_path = Path(path_str)
+    if not dataset_path.exists():
+        raise HTTPException(404, 'path does not exist')
+    dataset_id = str(uuid.uuid4())[:8]
+    fmt = format_detector.detect_format(dataset_path)
+    structure = format_detector.get_dataset_structure(dataset_path)
+    valid, errors = format_detector.validate_dataset(dataset_path, fmt)
+    datasets[dataset_id] = {'id': dataset_id, 'name': name, 'path': str(dataset_path), 'format': fmt, 'structure': structure, 'valid': valid, 'errors': errors, 'status': 'uploaded', 'created': str(np.datetime64('now'))}
+    return {'id': dataset_id, 'name': name, 'format': fmt, 'valid': valid, 'errors': errors}
 @app.post('/api/upload')
 async def upload(file: UploadFile = File(...)):
     file_id = str(uuid.uuid4())[:8]

@@ -1,250 +1,79 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 const API = 'http://localhost:8007';
 function App() {
-  const [view, setView] = useState('datasets');
-  const [datasets, setDatasets] = useState([]);
-  const [algorithms, setAlgorithms] = useState([]);
-  const [runs, setRuns] = useState([]);
-  const [ws, setWs] = useState(null);
-  useEffect(() => {
-    loadData();
-    connectWS();
-  }, []);
-  const connectWS = () => {
-    const socket = new WebSocket(`ws://localhost:8007/ws/client_${Date.now()}`);
-    socket.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.type === 'complete') loadData();
-    };
-    setWs(socket);
-  };
-  const loadData = async () => {
-    const [ds, alg, rn] = await Promise.all([fetch(`${API}/api/datasets`).then(r => r.json()), fetch(`${API}/api/algorithms`).then(r => r.json()), fetch(`${API}/api/runs`).then(r => r.json())]);
-    setDatasets(ds.datasets || []);
-    setAlgorithms(alg.algorithms || []);
-    setRuns(rn.runs || []);
-  };
-  return (
-    <div className="app">
-      <header className="header">
-        <h1>OpenSLAM</h1>
-        <nav>
-          <button onClick={() => setView('datasets')} className={view === 'datasets' ? 'active' : ''}>datasets</button>
-          <button onClick={() => setView('algorithms')} className={view === 'algorithms' ? 'active' : ''}>algorithms</button>
-          <button onClick={() => setView('runs')} className={view === 'runs' ? 'active' : ''}>runs</button>
-          <button onClick={() => setView('results')} className={view === 'results' ? 'active' : ''}>results</button>
-        </nav>
-      </header>
-      <main className="main">
-        {view === 'datasets' && <Datasets datasets={datasets} onUpdate={loadData} />}
-        {view === 'algorithms' && <Algorithms algorithms={algorithms} onUpdate={loadData} />}
-        {view === 'runs' && <Runs datasets={datasets} algorithms={algorithms} runs={runs} onUpdate={loadData} />}
-        {view === 'results' && <Results runs={runs} />}
-      </main>
-    </div>
-  );
+const [view, setView] = useState('datasets');
+const [datasets, setDatasets] = useState([]);
+const [algorithms, setAlgorithms] = useState([]);
+const [runs, setRuns] = useState([]);
+const [ws, setWs] = useState(null);
+const [connected, setConnected] = useState(false);
+const [selectedDataset, setSelectedDataset] = useState(null);
+const [selectedAlgorithm, setSelectedAlgorithm] = useState(null);
+const [selectedRun, setSelectedRun] = useState(null);
+const [filterStatus, setFilterStatus] = useState('all');
+const [sortBy, setSortBy] = useState('date');
+const [searchQuery, setSearchQuery] = useState('');
+const [notifications, setNotifications] = useState([]);
+const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+const [theme, setTheme] = useState('light');
+const clientId = useRef(`client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+useEffect(() => { loadData(); connectWebSocket(); const interval = setInterval(loadData, 5000); return () => { clearInterval(interval); if (ws) ws.close(); }; }, []);
+const connectWebSocket = () => { const socket = new WebSocket(`ws://localhost:8007/ws/${clientId.current}`); socket.onopen = () => { setConnected(true); addNotification('connected to server', 'success'); }; socket.onclose = () => { setConnected(false); addNotification('disconnected from server', 'warning'); setTimeout(connectWebSocket, 3000); }; socket.onmessage = (e) => { const data = JSON.parse(e.data); if (data.type === 'run_update') { loadData(); addNotification(`run ${data.run_id} ${data.status}`, 'info'); } }; setWs(socket); };
+const loadData = async () => { const [ds, alg, rn] = await Promise.all([fetch(`${API}/api/datasets`).then(r => r.json()).catch(() => ({ datasets: [] })), fetch(`${API}/api/algorithms`).then(r => r.json()).catch(() => ({ algorithms: [] })), fetch(`${API}/api/runs`).then(r => r.json()).catch(() => ({ runs: [] }))]); setDatasets(ds.datasets || []); setAlgorithms(alg.algorithms || []); setRuns(rn.runs || []); };
+const addNotification = (message, type = 'info') => { const id = Date.now(); setNotifications(prev => [...prev, { id, message, type, time: new Date().toLocaleTimeString() }]); setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000); };
+const filterAndSort = (items) => { let filtered = items; if (searchQuery) { filtered = filtered.filter(item => JSON.stringify(item).toLowerCase().includes(searchQuery.toLowerCase())); } if (filterStatus !== 'all') { filtered = filtered.filter(item => item.status === filterStatus); } if (sortBy === 'date') { filtered = filtered.sort((a, b) => new Date(b.created || b.timestamp || 0) - new Date(a.created || a.timestamp || 0)); } else if (sortBy === 'name') { filtered = filtered.sort((a, b) => (a.name || a.id || '').localeCompare(b.name || b.id || '')); } return filtered; };
+return (<div className={`app theme-${theme}`}><aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}><div className="sidebar-header"><div className="brand"><div className="brand-logo">OS</div><div className="brand-info"><h1>openslam</h1><span className="version">v2.0</span></div></div><button className="sidebar-toggle" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>{sidebarCollapsed ? '→' : '←'}</button></div><div className="sidebar-status"><div className={`connection-status ${connected ? 'connected' : 'disconnected'}`}><span className="status-dot"></span><span className="status-text">{connected ? 'connected' : 'disconnected'}</span></div><div className="system-stats"><div className="stat-item"><span className="stat-label">datasets</span><span className="stat-value">{datasets.length}</span></div><div className="stat-item"><span className="stat-label">algorithms</span><span className="stat-value">{algorithms.length}</span></div><div className="stat-item"><span className="stat-label">runs</span><span className="stat-value">{runs.length}</span></div></div></div><nav className="sidebar-nav"><button className={view === 'datasets' ? 'active' : ''} onClick={() => setView('datasets')}><span className="nav-icon">📊</span><span className="nav-label">datasets</span><span className="nav-badge">{datasets.length}</span></button><button className={view === 'algorithms' ? 'active' : ''} onClick={() => setView('algorithms')}><span className="nav-icon">🔧</span><span className="nav-label">algorithms</span><span className="nav-badge">{algorithms.length}</span></button><button className={view === 'runs' ? 'active' : ''} onClick={() => setView('runs')}><span className="nav-icon">▶️</span><span className="nav-label">runs</span><span className="nav-badge">{runs.filter(r => r.status === 'running').length || runs.length}</span></button><button className={view === 'results' ? 'active' : ''} onClick={() => setView('results')}><span className="nav-icon">📈</span><span className="nav-label">results</span><span className="nav-badge">{runs.filter(r => r.status === 'completed').length}</span></button><button className={view === 'analytics' ? 'active' : ''} onClick={() => setView('analytics')}><span className="nav-icon">📉</span><span className="nav-label">analytics</span></button></nav><div className="sidebar-footer"><button className="theme-toggle" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}><span className="theme-icon">{theme === 'light' ? '🌙' : '☀️'}</span><span className="theme-label">{theme === 'light' ? 'dark' : 'light'} mode</span></button><div className="footer-info"><p className="footer-text">research-grade slam evaluation platform</p></div></div></aside><main className={`main-content ${sidebarCollapsed ? 'expanded' : ''}`}><div className="content-header"><div className="header-left"><h2 className="view-title">{view}</h2><p className="view-description">{view === 'datasets' && 'manage and process slam datasets'}{view === 'algorithms' && 'create and configure slam algorithms'}{view === 'runs' && 'execute and monitor slam evaluations'}{view === 'results' && 'analyze and compare slam performance'}{view === 'analytics' && 'advanced analytics and insights'}</p></div><div className="header-actions"><div className="search-box"><input type="text" placeholder="search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="search-input" /><span className="search-icon">🔍</span></div><div className="filter-controls"><select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="filter-select"><option value="all">all status</option><option value="uploaded">uploaded</option><option value="processed">processed</option><option value="running">running</option><option value="completed">completed</option><option value="failed">failed</option></select><select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="filter-select"><option value="date">sort by date</option><option value="name">sort by name</option></select></div></div></div><div className="content-body">{view === 'datasets' && <Datasets datasets={filterAndSort(datasets)} onUpdate={loadData} onSelect={setSelectedDataset} selected={selectedDataset} addNotification={addNotification} />}{view === 'algorithms' && <Algorithms algorithms={filterAndSort(algorithms)} onUpdate={loadData} onSelect={setSelectedAlgorithm} selected={selectedAlgorithm} addNotification={addNotification} />}{view === 'runs' && <Runs runs={filterAndSort(runs)} datasets={datasets.filter(d => d.status === 'processed')} algorithms={algorithms} onUpdate={loadData} addNotification={addNotification} />}{view === 'results' && <Results runs={runs.filter(r => r.status === 'completed')} onSelect={setSelectedRun} selected={selectedRun} addNotification={addNotification} />}{view === 'analytics' && <Analytics runs={runs} datasets={datasets} algorithms={algorithms} addNotification={addNotification} />}</div></main><div className="notifications-container">{notifications.map(n => (<div key={n.id} className={`notification notification-${n.type}`}><div className="notification-content"><span className="notification-icon">{n.type === 'success' ? '✓' : n.type === 'error' ? '✗' : n.type === 'warning' ? '⚠' : 'ℹ'}</span><span className="notification-message">{n.message}</span></div><span className="notification-time">{n.time}</span></div>))}</div></div>);
 }
-function Datasets({ datasets, onUpdate }) {
-  const [uploading, setUploading] = useState(false);
-  const handleUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    const form = new FormData();
-    form.append('file', file);
-    await fetch(`${API}/api/upload`, { method: 'POST', body: form });
-    setUploading(false);
-    onUpdate();
-  };
-  const handleProcess = async (id) => {
-    await fetch(`${API}/api/dataset/${id}/process`, { method: 'POST' });
-    onUpdate();
-  };
-  return (
-    <div className="panel">
-      <div className="panel-header">
-        <h2>datasets</h2>
-        <label className="button primary">
-          {uploading ? 'uploading...' : 'upload dataset'}
-          <input type="file" onChange={handleUpload} style={{ display: 'none' }} />
-        </label>
-      </div>
-      <div className="list">
-        {datasets.map(ds => (
-          <div key={ds.id} className="item">
-            <div className="item-header">
-              <h3>{ds.name}</h3>
-              <span className={`badge ${ds.status}`}>{ds.status}</span>
-            </div>
-            <div className="item-body">
-              <p>format: {ds.format}</p>
-              <p>valid: {ds.valid ? 'yes' : 'no'}</p>
-              {ds.errors && ds.errors.length > 0 && <p className="error">errors: {ds.errors.join(', ')}</p>}
-            </div>
-            {ds.status === 'uploaded' && <button onClick={() => handleProcess(ds.id)} className="button">process</button>}
-          </div>
-        ))}
-        {datasets.length === 0 && <div className="empty">no datasets uploaded</div>}
-      </div>
-    </div>
-  );
+function Datasets({ datasets, onUpdate, onSelect, selected, addNotification }) {
+const [showPathModal, setShowPathModal] = useState(false);
+const [datasetPath, setDatasetPath] = useState('');
+const [datasetName, setDatasetName] = useState('');
+const [loading, setLoading] = useState(false);
+const [showDetails, setShowDetails] = useState({});
+const [processing, setProcessing] = useState({});
+const handleAddDataset = async () => { if (!datasetPath || !datasetName) { addNotification('path and name required', 'error'); return; } setLoading(true); const res = await fetch(`${API}/api/dataset/load`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: datasetPath, name: datasetName }) }).catch(() => null); setLoading(false); if (res && res.ok) { addNotification(`dataset ${datasetName} added`, 'success'); setShowPathModal(false); setDatasetPath(''); setDatasetName(''); onUpdate(); } else { addNotification('failed to add dataset', 'error'); } };
+const handleProcess = async (id) => { setProcessing({ ...processing, [id]: true }); const res = await fetch(`${API}/api/dataset/${id}/process`, { method: 'POST' }).catch(() => null); if (res && res.ok) { addNotification('dataset processing started', 'success'); onUpdate(); } else { addNotification('failed to process dataset', 'error'); } setProcessing({ ...processing, [id]: false }); };
+const toggleDetails = (id) => { setShowDetails({ ...showDetails, [id]: !showDetails[id] }); };
+return (<div className="datasets-view"><div className="view-actions"><button className="btn btn-primary" onClick={() => setShowPathModal(true)}><span className="btn-icon">+</span>add dataset</button><div className="view-stats"><div className="stat-pill"><span className="stat-pill-label">total</span><span className="stat-pill-value">{datasets.length}</span></div><div className="stat-pill stat-pill-success"><span className="stat-pill-label">processed</span><span className="stat-pill-value">{datasets.filter(d => d.status === 'processed').length}</span></div><div className="stat-pill stat-pill-warning"><span className="stat-pill-label">pending</span><span className="stat-pill-value">{datasets.filter(d => d.status === 'uploaded').length}</span></div></div></div>{datasets.length === 0 ? (<div className="empty-state"><div className="empty-icon">📊</div><h3>no datasets found</h3><p>add a dataset by selecting its path</p><button className="btn btn-primary" onClick={() => setShowPathModal(true)}>add first dataset</button></div>) : (<div className="items-grid">{datasets.map(ds => (<div key={ds.id} className={`dataset-card ${selected?.id === ds.id ? 'selected' : ''}`} onClick={() => onSelect(ds)}><div className="card-header"><div className="card-title-row"><h3 className="card-title">{ds.name || ds.id}</h3><span className={`badge badge-${ds.status || 'unknown'}`}>{ds.status || 'unknown'}</span></div><button className="card-action-btn" onClick={(e) => { e.stopPropagation(); toggleDetails(ds.id); }}>{showDetails[ds.id] ? '▲' : '▼'}</button></div><div className="card-body"><div className="card-info-grid"><div className="info-item"><span className="info-label">format</span><span className="info-value">{ds.format || 'unknown'}</span></div><div className="info-item"><span className="info-label">path</span><span className="info-value" title={ds.path}>{ds.path ? ds.path.split('/').slice(-2).join('/') : 'n/a'}</span></div>{ds.frames && <div className="info-item"><span className="info-label">frames</span><span className="info-value">{ds.frames}</span></div>}{ds.sequences && <div className="info-item"><span className="info-label">sequences</span><span className="info-value">{ds.sequences}</span></div>}</div>{showDetails[ds.id] && (<div className="card-details"><div className="details-section"><h4>dataset information</h4><div className="details-grid"><p><strong>id:</strong> {ds.id}</p><p><strong>created:</strong> {ds.created ? new Date(ds.created).toLocaleString() : 'n/a'}</p><p><strong>size:</strong> {ds.size || 'unknown'}</p><p><strong>path:</strong> {ds.path || 'unknown'}</p>{ds.metadata && Object.keys(ds.metadata).length > 0 && (<div className="metadata-section"><h5>metadata</h5>{Object.entries(ds.metadata).map(([k, v]) => (<p key={k}><strong>{k}:</strong> {JSON.stringify(v)}</p>))}</div>)}</div></div></div>)}</div><div className="card-footer">{ds.status === 'uploaded' && (<button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); handleProcess(ds.id); }} disabled={processing[ds.id]}>{processing[ds.id] ? 'processing...' : 'process dataset'}</button>)}{ds.status === 'processed' && (<button className="btn btn-sm btn-success" disabled><span className="btn-icon">✓</span>ready for evaluation</button>)}<button className="btn btn-sm btn-ghost" onClick={(e) => { e.stopPropagation(); onSelect(ds); }}>view details</button></div></div>))}</div>)}{showPathModal && (<div className="modal" onClick={() => setShowPathModal(false)}><div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}><div className="modal-header"><h2>add dataset</h2><button className="modal-close" onClick={() => setShowPathModal(false)}>×</button></div><div className="modal-body"><div className="form-group"><label className="form-label">dataset name</label><input type="text" className="form-input" placeholder="enter dataset name" value={datasetName} onChange={(e) => setDatasetName(e.target.value)} /></div><div className="form-group"><label className="form-label">dataset path</label><div className="path-input-group"><input type="text" className="form-input" placeholder="/path/to/dataset" value={datasetPath} onChange={(e) => setDatasetPath(e.target.value)} /><button className="btn btn-secondary" onClick={() => { const path = prompt('enter dataset path:'); if (path) setDatasetPath(path); }}>browse</button></div><p className="form-help">enter the absolute path to your slam dataset directory</p></div><div className="info-box"><h4>supported formats</h4><ul className="format-list"><li><strong>kitti:</strong> sequences with poses and calibration</li><li><strong>euroc:</strong> mav0 format with sensors</li><li><strong>tum:</strong> rgb-d format with timestamps</li><li><strong>rosbag:</strong> ros bag files</li><li><strong>custom:</strong> automatic detection</li></ul></div></div><div className="modal-footer"><button className="btn btn-ghost" onClick={() => setShowPathModal(false)}>cancel</button><button className="btn btn-primary" onClick={handleAddDataset} disabled={loading || !datasetPath || !datasetName}>{loading ? 'adding...' : 'add dataset'}</button></div></div></div>)}</div>);
 }
-function Algorithms({ algorithms, onUpdate }) {
-  const [show, setShow] = useState(false);
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const handleCreate = async () => {
-    await fetch(`${API}/api/algorithm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, code }) });
-    setShow(false);
-    setName('');
-    setCode('');
-    onUpdate();
-  };
-  return (
-    <div className="panel">
-      <div className="panel-header">
-        <h2>algorithms</h2>
-        <button onClick={() => setShow(true)} className="button primary">create algorithm</button>
-      </div>
-      <div className="list">
-        {algorithms.map(alg => (
-          <div key={alg.id} className="item">
-            <h3>{alg.name}</h3>
-            <p>id: {alg.id}</p>
-          </div>
-        ))}
-        {algorithms.length === 0 && <div className="empty">no algorithms created</div>}
-      </div>
-      {show && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>create algorithm</h2>
-            <input type="text" placeholder="name" value={name} onChange={(e) => setName(e.target.value)} className="input" />
-            <textarea placeholder="code" value={code} onChange={(e) => setCode(e.target.value)} className="textarea" rows={20} />
-            <div className="modal-actions">
-              <button onClick={handleCreate} className="button primary">create</button>
-              <button onClick={() => setShow(false)} className="button">cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+function Algorithms({ algorithms, onUpdate, onSelect, selected, addNotification }) {
+const [showModal, setShowModal] = useState(false);
+const [name, setName] = useState('');
+const [description, setDescription] = useState('');
+const [code, setCode] = useState('class CustomSLAM:\n    def initialize(self, cfg):\n        pass\n    def process_frame(self, frame_data):\n        return None\n    def finalize(self):\n        return {}');
+const [params, setParams] = useState('{}');
+const [loading, setLoading] = useState(false);
+const [showDetails, setShowDetails] = useState({});
+const handleCreate = async () => { if (!name) { addNotification('algorithm name required', 'error'); return; } let parsedParams = {}; if (params) { try { parsedParams = JSON.parse(params); } catch { addNotification('invalid json parameters', 'error'); return; } } setLoading(true); const res = await fetch(`${API}/api/algorithm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, description, code, params: parsedParams }) }).catch(() => null); setLoading(false); if (res && res.ok) { addNotification(`algorithm ${name} created`, 'success'); setShowModal(false); setName(''); setDescription(''); setCode('class CustomSLAM:\n    def initialize(self, cfg):\n        pass\n    def process_frame(self, frame_data):\n        return None\n    def finalize(self):\n        return {}'); setParams('{}'); onUpdate(); } else { addNotification('failed to create algorithm', 'error'); } };
+const toggleDetails = (id) => { setShowDetails({ ...showDetails, [id]: !showDetails[id] }); };
+return (<div className="algorithms-view"><div className="view-actions"><button className="btn btn-primary" onClick={() => setShowModal(true)}><span className="btn-icon">+</span>create algorithm</button><div className="view-stats"><div className="stat-pill"><span className="stat-pill-label">total</span><span className="stat-pill-value">{algorithms.length}</span></div><div className="stat-pill stat-pill-info"><span className="stat-pill-label">custom</span><span className="stat-pill-value">{algorithms.filter(a => a.type === 'custom').length}</span></div><div className="stat-pill stat-pill-success"><span className="stat-pill-label">builtin</span><span className="stat-pill-value">{algorithms.filter(a => a.type === 'builtin').length}</span></div></div></div>{algorithms.length === 0 ? (<div className="empty-state"><div className="empty-icon">🔧</div><h3>no algorithms found</h3><p>create a custom slam algorithm to get started</p><button className="btn btn-primary" onClick={() => setShowModal(true)}>create first algorithm</button></div>) : (<div className="items-grid">{algorithms.map(alg => (<div key={alg.id} className={`algorithm-card ${selected?.id === alg.id ? 'selected' : ''}`} onClick={() => onSelect(alg)}><div className="card-header"><div className="card-title-row"><h3 className="card-title">{alg.name || alg.id}</h3><span className={`badge badge-${alg.type || 'custom'}`}>{alg.type || 'custom'}</span></div><button className="card-action-btn" onClick={(e) => { e.stopPropagation(); toggleDetails(alg.id); }}>{showDetails[alg.id] ? '▲' : '▼'}</button></div><div className="card-body"><p className="card-description">{alg.description || 'no description'}</p><div className="card-info-grid"><div className="info-item"><span className="info-label">created</span><span className="info-value">{alg.created ? new Date(alg.created).toLocaleString() : 'n/a'}</span></div><div className="info-item"><span className="info-label">parameters</span><span className="info-value">{alg.params ? Object.keys(alg.params).length : 0}</span></div></div>{showDetails[alg.id] && (<div className="card-details"><div className="details-section"><h4>algorithm configuration</h4><div className="details-grid"><p><strong>id:</strong> {alg.id}</p><p><strong>type:</strong> {alg.type || 'custom'}</p>{alg.params && Object.keys(alg.params).length > 0 && (<div className="params-section"><h5>parameters</h5><pre className="code-block">{JSON.stringify(alg.params, null, 2)}</pre></div>)}{alg.code && (<div className="code-section"><h5>implementation</h5><pre className="code-block">{alg.code.substring(0, 500)}{alg.code.length > 500 ? '...' : ''}</pre></div>)}</div></div></div>)}</div><div className="card-footer"><button className="btn btn-sm btn-ghost" onClick={(e) => { e.stopPropagation(); onSelect(alg); }}>view details</button></div></div>))}</div>)}{showModal && (<div className="modal" onClick={() => setShowModal(false)}><div className="modal-content modal-xlarge" onClick={(e) => e.stopPropagation()}><div className="modal-header"><h2>create algorithm</h2><button className="modal-close" onClick={() => setShowModal(false)}>×</button></div><div className="modal-body"><div className="form-grid"><div className="form-group"><label className="form-label">algorithm name</label><input type="text" className="form-input" placeholder="my slam algorithm" value={name} onChange={(e) => setName(e.target.value)} /></div><div className="form-group"><label className="form-label">description</label><input type="text" className="form-input" placeholder="describe your algorithm" value={description} onChange={(e) => setDescription(e.target.value)} /></div></div><div className="form-group"><label className="form-label">implementation code</label><textarea className="form-textarea code-editor" rows={15} value={code} onChange={(e) => setCode(e.target.value)} placeholder="implement your slam algorithm" /></div><div className="form-group"><label className="form-label">parameters (json)</label><textarea className="form-textarea" rows={4} value={params} onChange={(e) => setParams(e.target.value)} placeholder='{"param1": "value1"}' /></div><div className="info-box"><h4>implementation requirements</h4><ul className="format-list"><li><strong>initialize(cfg):</strong> setup algorithm with configuration</li><li><strong>process_frame(frame_data):</strong> process single frame, return pose</li><li><strong>finalize():</strong> cleanup and return trajectory</li></ul></div></div><div className="modal-footer"><button className="btn btn-ghost" onClick={() => setShowModal(false)}>cancel</button><button className="btn btn-primary" onClick={handleCreate} disabled={loading || !name}>{loading ? 'creating...' : 'create algorithm'}</button></div></div></div>)}</div>);
 }
-function Runs({ datasets, algorithms, runs, onUpdate }) {
-  const [datasetId, setDatasetId] = useState('');
-  const [algorithmId, setAlgorithmId] = useState('');
-  const [running, setRunning] = useState(false);
-  const processedDatasets = datasets.filter(d => d.status === 'processed');
-  const handleRun = async () => {
-    if (!datasetId || !algorithmId) return;
-    setRunning(true);
-    await fetch(`${API}/api/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataset_id: datasetId, algorithm_id: algorithmId }) });
-    setRunning(false);
-    onUpdate();
-  };
-  return (
-    <div className="panel">
-      <div className="panel-header">
-        <h2>runs</h2>
-      </div>
-      <div className="form">
-        <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)} className="select">
-          <option value="">select dataset</option>
-          {processedDatasets.map(ds => <option key={ds.id} value={ds.id}>{ds.name}</option>)}
-        </select>
-        <select value={algorithmId} onChange={(e) => setAlgorithmId(e.target.value)} className="select">
-          <option value="">select algorithm</option>
-          {algorithms.map(alg => <option key={alg.id} value={alg.id}>{alg.name}</option>)}
-        </select>
-        <button onClick={handleRun} disabled={!datasetId || !algorithmId || running} className="button primary">{running ? 'running...' : 'start run'}</button>
-      </div>
-      <div className="list">
-        {runs.map(run => (
-          <div key={run.id} className="item">
-            <div className="item-header">
-              <h3>run {run.id}</h3>
-              <span className={`badge ${run.status}`}>{run.status}</span>
-            </div>
-            <div className="item-body">
-              <p>dataset: {run.dataset_id}</p>
-              <p>algorithm: {run.algorithm_id}</p>
-              {run.metrics && (
-                <div className="metrics">
-                  <p>ate rmse: {run.metrics.ate?.rmse?.toFixed(3)}m</p>
-                  <p>rpe trans: {run.metrics.rpe?.trans_rmse?.toFixed(3)}m</p>
-                  <p>robustness: {run.metrics.robustness?.toFixed(1)}/100</p>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-        {runs.length === 0 && <div className="empty">no runs executed</div>}
-      </div>
-    </div>
-  );
+function Runs({ runs, datasets, algorithms, onUpdate, addNotification }) {
+const [selectedDataset, setSelectedDataset] = useState('');
+const [selectedAlgorithm, setSelectedAlgorithm] = useState('');
+const [loading, setLoading] = useState(false);
+const [showDetails, setShowDetails] = useState({});
+const handleRun = async () => { if (!selectedDataset || !selectedAlgorithm) { addNotification('select dataset and algorithm', 'error'); return; } setLoading(true); const res = await fetch(`${API}/api/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataset_id: selectedDataset, algorithm_id: selectedAlgorithm }) }).catch(() => null); setLoading(false); if (res && res.ok) { addNotification('run started', 'success'); onUpdate(); } else { addNotification('failed to start run', 'error'); } };
+const toggleDetails = (id) => { setShowDetails({ ...showDetails, [id]: !showDetails[id] }); };
+const getStatusIcon = (status) => { switch(status) { case 'running': return '▶️'; case 'completed': return '✓'; case 'failed': return '✗'; default: return '○'; } };
+const getProgressPercentage = (run) => { if (run.status === 'completed') return 100; if (run.status === 'failed') return 0; if (run.progress) return run.progress; return 0; };
+return (<div className="runs-view"><div className="run-control-panel"><h3>execute slam evaluation</h3><div className="control-form"><div className="form-row"><div className="form-group"><label className="form-label">select dataset</label><select className="form-select" value={selectedDataset} onChange={(e) => setSelectedDataset(e.target.value)}><option value="">choose dataset</option>{datasets.map(ds => (<option key={ds.id} value={ds.id}>{ds.name || ds.id} ({ds.format})</option>))}</select></div><div className="form-group"><label className="form-label">select algorithm</label><select className="form-select" value={selectedAlgorithm} onChange={(e) => setSelectedAlgorithm(e.target.value)}><option value="">choose algorithm</option>{algorithms.map(alg => (<option key={alg.id} value={alg.id}>{alg.name || alg.id}</option>))}</select></div><div className="form-group"><button className="btn btn-primary btn-large" onClick={handleRun} disabled={loading || !selectedDataset || !selectedAlgorithm}><span className="btn-icon">{loading ? '⏳' : '▶️'}</span>{loading ? 'starting...' : 'start evaluation'}</button></div></div></div></div><div className="runs-list"><div className="runs-header"><h3>evaluation runs</h3><div className="runs-stats"><div className="stat-pill"><span className="stat-pill-label">total</span><span className="stat-pill-value">{runs.length}</span></div><div className="stat-pill stat-pill-warning"><span className="stat-pill-label">running</span><span className="stat-pill-value">{runs.filter(r => r.status === 'running').length}</span></div><div className="stat-pill stat-pill-success"><span className="stat-pill-label">completed</span><span className="stat-pill-value">{runs.filter(r => r.status === 'completed').length}</span></div><div className="stat-pill stat-pill-error"><span className="stat-pill-label">failed</span><span className="stat-pill-value">{runs.filter(r => r.status === 'failed').length}</span></div></div></div>{runs.length === 0 ? (<div className="empty-state"><div className="empty-icon">▶️</div><h3>no runs found</h3><p>start a slam evaluation run to see results</p></div>) : (<div className="items-list">{runs.map(run => (<div key={run.id} className="run-item"><div className="run-header"><div className="run-title-row"><span className="run-icon">{getStatusIcon(run.status)}</span><h4 className="run-title">{run.id}</h4><span className={`badge badge-${run.status}`}>{run.status}</span></div><button className="card-action-btn" onClick={() => toggleDetails(run.id)}>{showDetails[run.id] ? '▲' : '▼'}</button></div><div className="run-body"><div className="run-info-grid"><div className="info-item"><span className="info-label">dataset</span><span className="info-value">{run.dataset_name || run.dataset_id}</span></div><div className="info-item"><span className="info-label">algorithm</span><span className="info-value">{run.algorithm_name || run.algorithm_id}</span></div><div className="info-item"><span className="info-label">started</span><span className="info-value">{run.timestamp ? new Date(run.timestamp).toLocaleString() : 'n/a'}</span></div>{run.duration && <div className="info-item"><span className="info-label">duration</span><span className="info-value">{run.duration}s</span></div>}</div>{(run.status === 'running' || run.progress > 0) && (<div className="progress-bar"><div className="progress-fill" style={{ width: `${getProgressPercentage(run)}%` }}></div><span className="progress-text">{getProgressPercentage(run).toFixed(0)}%</span></div>)}{run.metrics && Object.keys(run.metrics).length > 0 && (<div className="metrics-preview"><div className="metrics-row">{Object.entries(run.metrics).slice(0, 4).map(([key, val]) => (<div key={key} className="metric-item"><span className="metric-label">{key}</span><span className="metric-value">{typeof val === 'number' ? val.toFixed(4) : val}</span></div>))}</div></div>)}{showDetails[run.id] && (<div className="run-details"><div className="details-section"><h5>run information</h5><div className="details-grid"><p><strong>run id:</strong> {run.id}</p><p><strong>dataset id:</strong> {run.dataset_id}</p><p><strong>algorithm id:</strong> {run.algorithm_id}</p><p><strong>status:</strong> {run.status}</p>{run.error && <p className="error-text"><strong>error:</strong> {run.error}</p>}{run.metrics && (<div className="full-metrics"><h5>complete metrics</h5><pre className="code-block">{JSON.stringify(run.metrics, null, 2)}</pre></div>)}</div></div></div>)}</div></div>))}</div>)}</div></div>);
 }
-function Results({ runs }) {
-  const [selected, setSelected] = useState(null);
-  const completed = runs.filter(r => r.status === 'completed');
-  return (
-    <div className="panel">
-      <div className="panel-header">
-        <h2>results</h2>
-      </div>
-      <div className="results">
-        <div className="results-sidebar">
-          {completed.map(run => (
-            <div key={run.id} onClick={() => setSelected(run)} className={`result-item ${selected?.id === run.id ? 'active' : ''}`}>
-              <h4>run {run.id}</h4>
-              <p>{run.algorithm_id}</p>
-            </div>
-          ))}
-          {completed.length === 0 && <div className="empty">no completed runs</div>}
-        </div>
-        <div className="results-content">
-          {selected ? (
-            <>
-              <h2>run {selected.id}</h2>
-              {selected.metrics && (
-                <div className="metrics-grid">
-                  <div className="metric-card">
-                    <h4>ate rmse</h4>
-                    <p className="metric-value">{selected.metrics.ate?.rmse?.toFixed(3)}m</p>
-                  </div>
-                  <div className="metric-card">
-                    <h4>rpe trans</h4>
-                    <p className="metric-value">{selected.metrics.rpe?.trans_rmse?.toFixed(3)}m</p>
-                  </div>
-                  <div className="metric-card">
-                    <h4>robustness</h4>
-                    <p className="metric-value">{selected.metrics.robustness?.toFixed(1)}/100</p>
-                  </div>
-                  <div className="metric-card">
-                    <h4>alignment quality</h4>
-                    <p className="metric-value">{selected.alignment?.quality?.rmse?.toFixed(3)}m</p>
-                  </div>
-                </div>
-              )}
-              {selected.plots && (
-                <div className="plots">
-                  <h3>plots</h3>
-                  {Object.entries(selected.plots).map(([key, path]) => (
-                    <div key={key} className="plot">
-                      <h4>{key.replace(/_/g, ' ')}</h4>
-                      <img src={`${API}/api/plot/${path}`} alt={key} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="empty">select a run to view results</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function Results({ runs, onSelect, selected, addNotification }) {
+const [activeTab, setActiveTab] = useState('metrics');
+const [compareMode, setCompareMode] = useState(false);
+const [compareRuns, setCompareRuns] = useState([]);
+const toggleCompare = (runId) => { if (compareRuns.includes(runId)) { setCompareRuns(compareRuns.filter(id => id !== runId)); } else { if (compareRuns.length < 5) { setCompareRuns([...compareRuns, runId]); } else { addNotification('maximum 5 runs for comparison', 'warning'); } } };
+return (<div className="results-view"><div className="results-layout"><div className="results-sidebar"><div className="sidebar-header"><h3>completed runs</h3><button className="btn btn-sm btn-secondary" onClick={() => setCompareMode(!compareMode)}>{compareMode ? 'exit compare' : 'compare mode'}</button></div><div className="results-list">{runs.length === 0 ? (<div className="empty-state-small"><p>no completed runs</p></div>) : runs.map(run => (<div key={run.id} className={`result-item ${selected?.id === run.id ? 'active' : ''} ${compareRuns.includes(run.id) ? 'compare-selected' : ''}`} onClick={() => { if (compareMode) { toggleCompare(run.id); } else { onSelect(run); } }}>{compareMode && (<input type="checkbox" checked={compareRuns.includes(run.id)} onChange={() => toggleCompare(run.id)} className="compare-checkbox" onClick={(e) => e.stopPropagation()} />)}<div className="result-item-content"><h4>{run.id.substring(0, 8)}</h4><p className="result-item-dataset">{run.dataset_name || run.dataset_id}</p><p className="result-item-algorithm">{run.algorithm_name || run.algorithm_id}</p><p className="result-item-time">{run.timestamp ? new Date(run.timestamp).toLocaleDateString() : 'n/a'}</p></div></div>))}</div></div><div className="results-content">{!selected && compareRuns.length === 0 ? (<div className="empty-state"><div className="empty-icon">📈</div><h3>select a run to view results</h3><p>choose a completed run from the sidebar</p></div>) : compareMode && compareRuns.length > 0 ? (<div className="comparison-view"><h2>comparison: {compareRuns.length} runs</h2><div className="comparison-grid">{compareRuns.map(runId => { const run = runs.find(r => r.id === runId); if (!run) return null; return (<div key={runId} className="comparison-card"><h4>{run.id.substring(0, 8)}</h4><p>{run.algorithm_name || run.algorithm_id}</p>{run.metrics && (<div className="metrics-list">{Object.entries(run.metrics).map(([k, v]) => (<div key={k} className="metric-row"><span>{k}</span><span>{typeof v === 'number' ? v.toFixed(4) : v}</span></div>))}</div>)}</div>); })}</div></div>) : selected ? (<div className="result-details-view"><div className="result-header"><h2>run: {selected.id}</h2><div className="result-meta"><span className="meta-item">dataset: {selected.dataset_name || selected.dataset_id}</span><span className="meta-item">algorithm: {selected.algorithm_name || selected.algorithm_id}</span><span className="meta-item">completed: {selected.timestamp ? new Date(selected.timestamp).toLocaleString() : 'n/a'}</span></div></div><div className="result-tabs"><button className={activeTab === 'metrics' ? 'active' : ''} onClick={() => setActiveTab('metrics')}>metrics</button><button className={activeTab === 'plots' ? 'active' : ''} onClick={() => setActiveTab('plots')}>plots</button><button className={activeTab === 'trajectory' ? 'active' : ''} onClick={() => setActiveTab('trajectory')}>trajectory</button><button className={activeTab === 'raw' ? 'active' : ''} onClick={() => setActiveTab('raw')}>raw data</button></div><div className="result-content">{activeTab === 'metrics' && selected.metrics && (<div className="metrics-display"><div className="metrics-grid">{Object.entries(selected.metrics).map(([key, val]) => (<div key={key} className="metric-card"><h4>{key}</h4><div className="metric-value">{typeof val === 'number' ? val.toFixed(4) : JSON.stringify(val)}</div></div>))}</div></div>)}{activeTab === 'plots' && (<div className="plots-display"><h3>visualization plots</h3>{selected.plots && selected.plots.length > 0 ? selected.plots.map((plot, idx) => (<div key={idx} className="plot-container"><h4>{plot.name || `plot ${idx + 1}`}</h4><img src={`${API}${plot.path}`} alt={plot.name} className="plot-image" /></div>)) : <p>no plots available</p>}</div>)}{activeTab === 'trajectory' && (<div className="trajectory-display"><h3>trajectory visualization</h3><p>3d trajectory viewer coming soon</p></div>)}{activeTab === 'raw' && (<div className="raw-data-display"><h3>raw data</h3><pre className="code-block">{JSON.stringify(selected, null, 2)}</pre></div>)}</div></div>) : null}</div></div></div>);
+}
+function Analytics({ runs, datasets, algorithms, addNotification }) {
+const completedRuns = runs.filter(r => r.status === 'completed');
+const failedRuns = runs.filter(r => r.status === 'failed');
+const successRate = runs.length > 0 ? ((completedRuns.length / runs.length) * 100).toFixed(1) : 0;
+const avgDuration = completedRuns.length > 0 ? (completedRuns.reduce((sum, r) => sum + (r.duration || 0), 0) / completedRuns.length).toFixed(2) : 0;
+const topAlgorithm = completedRuns.length > 0 ? completedRuns.reduce((acc, run) => { const alg = run.algorithm_name || run.algorithm_id; acc[alg] = (acc[alg] || 0) + 1; return acc; }, {}) : {};
+const mostUsedAlgorithm = Object.keys(topAlgorithm).length > 0 ? Object.entries(topAlgorithm).sort((a, b) => b[1] - a[1])[0][0] : 'n/a';
+return (<div className="analytics-view"><h2>platform analytics</h2><div className="analytics-grid"><div className="analytics-card"><div className="analytics-card-header"><h3>overview statistics</h3></div><div className="analytics-card-body"><div className="stat-grid"><div className="stat-box"><div className="stat-box-value">{runs.length}</div><div className="stat-box-label">total runs</div></div><div className="stat-box"><div className="stat-box-value">{datasets.length}</div><div className="stat-box-label">datasets</div></div><div className="stat-box"><div className="stat-box-value">{algorithms.length}</div><div className="stat-box-label">algorithms</div></div><div className="stat-box"><div className="stat-box-value">{successRate}%</div><div className="stat-box-label">success rate</div></div></div></div></div><div className="analytics-card"><div className="analytics-card-header"><h3>performance metrics</h3></div><div className="analytics-card-body"><div className="stat-list"><div className="stat-row"><span className="stat-row-label">average duration</span><span className="stat-row-value">{avgDuration}s</span></div><div className="stat-row"><span className="stat-row-label">completed runs</span><span className="stat-row-value">{completedRuns.length}</span></div><div className="stat-row"><span className="stat-row-label">failed runs</span><span className="stat-row-value">{failedRuns.length}</span></div><div className="stat-row"><span className="stat-row-label">most used algorithm</span><span className="stat-row-value">{mostUsedAlgorithm}</span></div></div></div></div><div className="analytics-card"><div className="analytics-card-header"><h3>recent activity</h3></div><div className="analytics-card-body"><div className="activity-list">{runs.slice(0, 10).map(run => (<div key={run.id} className="activity-item"><span className={`activity-icon ${run.status}`}>{run.status === 'completed' ? '✓' : run.status === 'failed' ? '✗' : '○'}</span><div className="activity-content"><p className="activity-title">{run.algorithm_name || run.algorithm_id} on {run.dataset_name || run.dataset_id}</p><p className="activity-time">{run.timestamp ? new Date(run.timestamp).toLocaleString() : 'n/a'}</p></div></div>))}</div></div></div></div></div>);
 }
 export default App;
