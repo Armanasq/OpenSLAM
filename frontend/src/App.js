@@ -1,282 +1,250 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Navigation from './components/Navigation';
-import LandingPage from './components/LandingPage';
-import DatasetManager from './components/DatasetManager';
-import DatasetPreview from './components/DatasetPreview';
-import AlgorithmDevelopment from './components/AlgorithmDevelopment';
-import Visualization from './components/Visualization';
-import TutorialInterface from './components/TutorialInterface';
-import PerformanceAnalysis from './components/PerformanceAnalysis';
 import './App.css';
-
-const App = () => {
-  const [currentDataset, setCurrentDataset] = useState(null);
+const API = 'http://localhost:8007';
+function App() {
+  const [view, setView] = useState('datasets');
+  const [datasets, setDatasets] = useState([]);
   const [algorithms, setAlgorithms] = useState([]);
-  const [executionResults, setExecutionResults] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
+  const [runs, setRuns] = useState([]);
+  const [ws, setWs] = useState(null);
   useEffect(() => {
-    initializeWebSocket();
-    loadInitialData();
-    
-    // Load theme preference
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-      setIsDarkMode(true);
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
+    loadData();
+    connectWS();
   }, []);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
-
-  const initializeWebSocket = async () => {
-    const Config = (await import('./config/loader')).default;
-    const config = new Config();
-    await config.load();
-    const wsUrl = config.get('urls.websocket_url');
-    const ws = new WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-      setIsConnected(true);
-      addNotification('Connected to SLAM backend', 'success');
+  const connectWS = () => {
+    const socket = new WebSocket(`ws://localhost:8007/ws/client_${Date.now()}`);
+    socket.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.type === 'complete') loadData();
     };
-    
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      handleWebSocketMessage(data);
-    };
-    
-    ws.onclose = () => {
-      setIsConnected(false);
-      addNotification('Disconnected from backend', 'error');
-    };
-    
-    ws.onerror = (error) => {
-      addNotification('WebSocket error occurred', 'error');
-    };
+    setWs(socket);
   };
-
-  const handleWebSocketMessage = (data) => {
-    switch (data.type) {
-      case 'algorithm_result':
-        setExecutionResults(prev => [...prev, data.payload]);
-        addNotification(`Algorithm ${data.payload.algorithm_name} completed`, 'success');
-        break;
-      case 'dataset_loaded':
-        setCurrentDataset(data.payload);
-        addNotification(`Dataset ${data.payload.name} loaded`, 'info');
-        break;
-      case 'error':
-        addNotification(data.message, 'error');
-        break;
-      default:
-        console.log('Unknown message type:', data.type);
-    }
+  const loadData = async () => {
+    const [ds, alg, rn] = await Promise.all([fetch(`${API}/api/datasets`).then(r => r.json()), fetch(`${API}/api/algorithms`).then(r => r.json()), fetch(`${API}/api/runs`).then(r => r.json())]);
+    setDatasets(ds.datasets || []);
+    setAlgorithms(alg.algorithms || []);
+    setRuns(rn.runs || []);
   };
-
-  const loadInitialData = async () => {
-    const Config = (await import('./config/loader')).default;
-    const config = new Config();
-    await config.load();
-    const apiBaseUrl = config.get('urls.api_base_url');
-    try {
-      const response = await fetch(`${apiBaseUrl}/datasets`);
-      if (response.ok) {
-        const datasets = await response.json();
-        if (datasets.length > 0) {
-          setCurrentDataset(datasets[0]);
-        }
-      }
-    } catch (error) {
-      addNotification('Failed to load initial data', 'error');
-    }
-  };
-
-  const addNotification = (message, type = 'info') => {
-    const notification = {
-      id: Date.now(),
-      message,
-      type,
-      timestamp: new Date()
-    };
-    setNotifications(prev => [...prev, notification]);
-    
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== notification.id));
-    }, 5000);
-  };
-
-  const handleDatasetSelect = (dataset) => {
-    setCurrentDataset(dataset);
-    addNotification(`Selected dataset: ${dataset.name}`, 'info');
-  };
-
-  const handleAlgorithmCreate = (algorithm) => {
-    setAlgorithms(prev => [...prev, algorithm]);
-    addNotification(`Algorithm ${algorithm.name} created`, 'success');
-  };
-
-  const handleAlgorithmExecute = async (algorithmId, datasetId, parameters) => {
-    const Config = (await import('./config/loader')).default;
-    const config = new Config();
-    await config.load();
-    const apiBaseUrl = config.get('urls.api_base_url');
-    try {
-      const response = await fetch(`${apiBaseUrl}/execute-algorithm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          algorithm_id: algorithmId,
-          dataset_id: datasetId,
-          parameters
-        })
-      });
-      
-      if (response.ok) {
-        addNotification('Algorithm execution started', 'info');
-      } else {
-        addNotification('Failed to start algorithm execution', 'error');
-      }
-    } catch (error) {
-      addNotification('Error executing algorithm', 'error');
-    }
-  };
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
-
   return (
-    <Router>
-      <div className={`app ${isDarkMode ? 'dark' : ''}`}>
-        <Navigation 
-          isConnected={isConnected}
-          currentDataset={currentDataset}
-          onDatasetSelect={handleDatasetSelect}
-          isDarkMode={isDarkMode}
-          onToggleTheme={toggleTheme}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
-        
-        <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          <Routes>
-            <Route 
-              path="/" 
-              element={<LandingPage isDarkMode={isDarkMode} />} 
-            />
-            <Route 
-              path="/datasets" 
-              element={
-                <DatasetManager 
-                  currentDataset={currentDataset}
-                  onDatasetSelect={handleDatasetSelect}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/dataset-preview" 
-              element={
-                <DatasetPreview 
-                  dataset={currentDataset}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/algorithms" 
-              element={
-                <AlgorithmDevelopment 
-                  algorithms={algorithms}
-                  currentDataset={currentDataset}
-                  onAlgorithmCreate={handleAlgorithmCreate}
-                  onAlgorithmExecute={handleAlgorithmExecute}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/visualization" 
-              element={
-                <Visualization 
-                  executionResults={executionResults}
-                  currentDataset={currentDataset}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/tutorials" 
-              element={
-                <TutorialInterface 
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/analysis" 
-              element={
-                <PerformanceAnalysis 
-                  executionResults={executionResults}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-          </Routes>
-        </main>
-        
-        <NotificationContainer notifications={notifications} isDarkMode={isDarkMode} />
-      </div>
-    </Router>
+    <div className="app">
+      <header className="header">
+        <h1>OpenSLAM</h1>
+        <nav>
+          <button onClick={() => setView('datasets')} className={view === 'datasets' ? 'active' : ''}>datasets</button>
+          <button onClick={() => setView('algorithms')} className={view === 'algorithms' ? 'active' : ''}>algorithms</button>
+          <button onClick={() => setView('runs')} className={view === 'runs' ? 'active' : ''}>runs</button>
+          <button onClick={() => setView('results')} className={view === 'results' ? 'active' : ''}>results</button>
+        </nav>
+      </header>
+      <main className="main">
+        {view === 'datasets' && <Datasets datasets={datasets} onUpdate={loadData} />}
+        {view === 'algorithms' && <Algorithms algorithms={algorithms} onUpdate={loadData} />}
+        {view === 'runs' && <Runs datasets={datasets} algorithms={algorithms} runs={runs} onUpdate={loadData} />}
+        {view === 'results' && <Results runs={runs} />}
+      </main>
+    </div>
   );
-};
-
-const NotificationContainer = ({ notifications, isDarkMode }) => {
-  if (notifications.length === 0) return null;
-
+}
+function Datasets({ datasets, onUpdate }) {
+  const [uploading, setUploading] = useState(false);
+  const handleUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const form = new FormData();
+    form.append('file', file);
+    await fetch(`${API}/api/upload`, { method: 'POST', body: form });
+    setUploading(false);
+    onUpdate();
+  };
+  const handleProcess = async (id) => {
+    await fetch(`${API}/api/dataset/${id}/process`, { method: 'POST' });
+    onUpdate();
+  };
   return (
-    <div className="notification-container">
-      {notifications.map(notification => (
-        <div 
-          key={notification.id} 
-          className={`notification notification-${notification.type} ${isDarkMode ? 'dark' : ''}`}
-        >
-          <div className="notification-content">
-            <div className="flex items-start gap-3">
-              <div className="notification-icon">
-                {notification.type === 'success' && '✓'}
-                {notification.type === 'error' && '✕'}
-                {notification.type === 'warning' && '⚠'}
-                {notification.type === 'info' && 'ℹ'}
-              </div>
-              <div className="flex-1">
-                <div className="notification-message">{notification.message}</div>
-                <div className="notification-time">
-                  {notification.timestamp.toLocaleTimeString()}
-                </div>
-              </div>
+    <div className="panel">
+      <div className="panel-header">
+        <h2>datasets</h2>
+        <label className="button primary">
+          {uploading ? 'uploading...' : 'upload dataset'}
+          <input type="file" onChange={handleUpload} style={{ display: 'none' }} />
+        </label>
+      </div>
+      <div className="list">
+        {datasets.map(ds => (
+          <div key={ds.id} className="item">
+            <div className="item-header">
+              <h3>{ds.name}</h3>
+              <span className={`badge ${ds.status}`}>{ds.status}</span>
+            </div>
+            <div className="item-body">
+              <p>format: {ds.format}</p>
+              <p>valid: {ds.valid ? 'yes' : 'no'}</p>
+              {ds.errors && ds.errors.length > 0 && <p className="error">errors: {ds.errors.join(', ')}</p>}
+            </div>
+            {ds.status === 'uploaded' && <button onClick={() => handleProcess(ds.id)} className="button">process</button>}
+          </div>
+        ))}
+        {datasets.length === 0 && <div className="empty">no datasets uploaded</div>}
+      </div>
+    </div>
+  );
+}
+function Algorithms({ algorithms, onUpdate }) {
+  const [show, setShow] = useState(false);
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const handleCreate = async () => {
+    await fetch(`${API}/api/algorithm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, code }) });
+    setShow(false);
+    setName('');
+    setCode('');
+    onUpdate();
+  };
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <h2>algorithms</h2>
+        <button onClick={() => setShow(true)} className="button primary">create algorithm</button>
+      </div>
+      <div className="list">
+        {algorithms.map(alg => (
+          <div key={alg.id} className="item">
+            <h3>{alg.name}</h3>
+            <p>id: {alg.id}</p>
+          </div>
+        ))}
+        {algorithms.length === 0 && <div className="empty">no algorithms created</div>}
+      </div>
+      {show && (
+        <div className="modal">
+          <div className="modal-content">
+            <h2>create algorithm</h2>
+            <input type="text" placeholder="name" value={name} onChange={(e) => setName(e.target.value)} className="input" />
+            <textarea placeholder="code" value={code} onChange={(e) => setCode(e.target.value)} className="textarea" rows={20} />
+            <div className="modal-actions">
+              <button onClick={handleCreate} className="button primary">create</button>
+              <button onClick={() => setShow(false)} className="button">cancel</button>
             </div>
           </div>
         </div>
-      ))}
+      )}
     </div>
   );
-};
-
+}
+function Runs({ datasets, algorithms, runs, onUpdate }) {
+  const [datasetId, setDatasetId] = useState('');
+  const [algorithmId, setAlgorithmId] = useState('');
+  const [running, setRunning] = useState(false);
+  const processedDatasets = datasets.filter(d => d.status === 'processed');
+  const handleRun = async () => {
+    if (!datasetId || !algorithmId) return;
+    setRunning(true);
+    await fetch(`${API}/api/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataset_id: datasetId, algorithm_id: algorithmId }) });
+    setRunning(false);
+    onUpdate();
+  };
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <h2>runs</h2>
+      </div>
+      <div className="form">
+        <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)} className="select">
+          <option value="">select dataset</option>
+          {processedDatasets.map(ds => <option key={ds.id} value={ds.id}>{ds.name}</option>)}
+        </select>
+        <select value={algorithmId} onChange={(e) => setAlgorithmId(e.target.value)} className="select">
+          <option value="">select algorithm</option>
+          {algorithms.map(alg => <option key={alg.id} value={alg.id}>{alg.name}</option>)}
+        </select>
+        <button onClick={handleRun} disabled={!datasetId || !algorithmId || running} className="button primary">{running ? 'running...' : 'start run'}</button>
+      </div>
+      <div className="list">
+        {runs.map(run => (
+          <div key={run.id} className="item">
+            <div className="item-header">
+              <h3>run {run.id}</h3>
+              <span className={`badge ${run.status}`}>{run.status}</span>
+            </div>
+            <div className="item-body">
+              <p>dataset: {run.dataset_id}</p>
+              <p>algorithm: {run.algorithm_id}</p>
+              {run.metrics && (
+                <div className="metrics">
+                  <p>ate rmse: {run.metrics.ate?.rmse?.toFixed(3)}m</p>
+                  <p>rpe trans: {run.metrics.rpe?.trans_rmse?.toFixed(3)}m</p>
+                  <p>robustness: {run.metrics.robustness?.toFixed(1)}/100</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {runs.length === 0 && <div className="empty">no runs executed</div>}
+      </div>
+    </div>
+  );
+}
+function Results({ runs }) {
+  const [selected, setSelected] = useState(null);
+  const completed = runs.filter(r => r.status === 'completed');
+  return (
+    <div className="panel">
+      <div className="panel-header">
+        <h2>results</h2>
+      </div>
+      <div className="results">
+        <div className="results-sidebar">
+          {completed.map(run => (
+            <div key={run.id} onClick={() => setSelected(run)} className={`result-item ${selected?.id === run.id ? 'active' : ''}`}>
+              <h4>run {run.id}</h4>
+              <p>{run.algorithm_id}</p>
+            </div>
+          ))}
+          {completed.length === 0 && <div className="empty">no completed runs</div>}
+        </div>
+        <div className="results-content">
+          {selected ? (
+            <>
+              <h2>run {selected.id}</h2>
+              {selected.metrics && (
+                <div className="metrics-grid">
+                  <div className="metric-card">
+                    <h4>ate rmse</h4>
+                    <p className="metric-value">{selected.metrics.ate?.rmse?.toFixed(3)}m</p>
+                  </div>
+                  <div className="metric-card">
+                    <h4>rpe trans</h4>
+                    <p className="metric-value">{selected.metrics.rpe?.trans_rmse?.toFixed(3)}m</p>
+                  </div>
+                  <div className="metric-card">
+                    <h4>robustness</h4>
+                    <p className="metric-value">{selected.metrics.robustness?.toFixed(1)}/100</p>
+                  </div>
+                  <div className="metric-card">
+                    <h4>alignment quality</h4>
+                    <p className="metric-value">{selected.alignment?.quality?.rmse?.toFixed(3)}m</p>
+                  </div>
+                </div>
+              )}
+              {selected.plots && (
+                <div className="plots">
+                  <h3>plots</h3>
+                  {Object.entries(selected.plots).map(([key, path]) => (
+                    <div key={key} className="plot">
+                      <h4>{key.replace(/_/g, ' ')}</h4>
+                      <img src={`${API}/api/plot/${path}`} alt={key} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="empty">select a run to view results</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 export default App;
