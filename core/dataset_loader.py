@@ -106,6 +106,119 @@ def quaternion_to_matrix(qw, qx, qy, qz, x, y, z):
     pose[:3, :3] = R
     pose[:3, 3] = [x, y, z]
     return pose
+def load_rosbag_poses(file_path, pose_topic='/slam/pose'):
+    file_path = Path(file_path)
+    if not file_path.exists():
+        return None, 'file_not_exist'
+    rosbag_available = False
+    rospy_available = False
+    try:
+        import rosbag
+        rosbag_available = True
+    except ImportError:
+        pass
+    try:
+        from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
+        from nav_msgs.msg import Odometry
+        rospy_available = True
+    except ImportError:
+        pass
+    if not rosbag_available or not rospy_available:
+        return None, 'rosbag_not_available'
+    timestamps = []
+    poses = []
+    bag = rosbag.Bag(str(file_path))
+    for topic, msg, t in bag.read_messages(topics=[pose_topic]):
+        timestamp = t.to_sec()
+        if hasattr(msg, 'pose'):
+            if hasattr(msg.pose, 'pose'):
+                pose_msg = msg.pose.pose
+            else:
+                pose_msg = msg.pose
+        else:
+            continue
+        x = pose_msg.position.x
+        y = pose_msg.position.y
+        z = pose_msg.position.z
+        qx = pose_msg.orientation.x
+        qy = pose_msg.orientation.y
+        qz = pose_msg.orientation.z
+        qw = pose_msg.orientation.w
+        pose = quaternion_to_matrix(qw, qx, qy, qz, x, y, z)
+        timestamps.append(timestamp)
+        poses.append(pose)
+    bag.close()
+    if len(poses) == 0:
+        return None, 'no_poses_found'
+    return {'timestamps': np.array(timestamps), 'poses': np.array(poses)}, None
+def load_custom_format(file_path):
+    file_path = Path(file_path)
+    if not file_path.exists():
+        return None, 'file_not_exist'
+    with open(file_path, 'r') as f:
+        first_line = f.readline().strip()
+        if not first_line or first_line.startswith('#'):
+            f.seek(0)
+            for line in f:
+                if not line.startswith('#') and line.strip():
+                    first_line = line.strip()
+                    break
+        values = first_line.replace(',', ' ').split()
+        num_values = len(values)
+    if num_values < 3:
+        return None, 'invalid_format'
+    timestamps = []
+    poses = []
+    with open(file_path, 'r') as f:
+        for line in f:
+            if line.startswith('#') or not line.strip():
+                continue
+            values = line.strip().replace(',', ' ').split()
+            if len(values) < 3:
+                continue
+            if num_values == 3:
+                x, y, z = float(values[0]), float(values[1]), float(values[2])
+                pose = np.eye(4)
+                pose[:3, 3] = [x, y, z]
+                poses.append(pose)
+            elif num_values == 4:
+                timestamp = float(values[0])
+                x, y, z = float(values[1]), float(values[2]), float(values[3])
+                pose = np.eye(4)
+                pose[:3, 3] = [x, y, z]
+                timestamps.append(timestamp)
+                poses.append(pose)
+            elif num_values == 7:
+                x, y, z = float(values[0]), float(values[1]), float(values[2])
+                qx, qy, qz, qw = float(values[3]), float(values[4]), float(values[5]), float(values[6])
+                pose = quaternion_to_matrix(qw, qx, qy, qz, x, y, z)
+                poses.append(pose)
+            elif num_values == 8:
+                timestamp = float(values[0])
+                x, y, z = float(values[1]), float(values[2]), float(values[3])
+                qx, qy, qz, qw = float(values[4]), float(values[5]), float(values[6]), float(values[7])
+                pose = quaternion_to_matrix(qw, qx, qy, qz, x, y, z)
+                timestamps.append(timestamp)
+                poses.append(pose)
+            elif num_values == 12:
+                matrix = np.array([float(v) for v in values]).reshape(3, 4)
+                pose = np.eye(4)
+                pose[:3, :] = matrix
+                poses.append(pose)
+            elif num_values == 13:
+                timestamp = float(values[0])
+                matrix = np.array([float(v) for v in values[1:]]).reshape(3, 4)
+                pose = np.eye(4)
+                pose[:3, :] = matrix
+                timestamps.append(timestamp)
+                poses.append(pose)
+            else:
+                continue
+    if len(poses) == 0:
+        return None, 'no_poses_parsed'
+    if len(timestamps) == 0:
+        return {'timestamps': None, 'poses': np.array(poses)}, None
+    return {'timestamps': np.array(timestamps), 'poses': np.array(poses)}, None
 def load_dataset(path, format_type=None):
     valid, error = validate_path(path)
     if not valid:
@@ -121,6 +234,16 @@ def load_dataset(path, format_type=None):
         return load_tum_dataset(path)
     elif format_type == 'euroc':
         return load_euroc_dataset(path)
+    elif format_type == 'rosbag':
+        result, error = load_rosbag_poses(path)
+        if error:
+            return None, error
+        return {'name': path.stem, 'format': 'rosbag', 'poses': result['poses'], 'timestamps': result['timestamps'], 'path': str(path)}, None
+    elif format_type == 'custom':
+        result, error = load_custom_format(path)
+        if error:
+            return None, error
+        return {'name': path.stem, 'format': 'custom', 'poses': result['poses'], 'timestamps': result['timestamps'], 'path': str(path)}, None
     else:
         return None, 'unsupported_format'
 def load_kitti_dataset(path):

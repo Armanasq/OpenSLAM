@@ -133,3 +133,95 @@ def plot_comparison(results_list, metric_name, output_path):
     plt.savefig(output_path, bbox_inches='tight', dpi=cfg.PLOT_DPI)
     plt.close()
     return str(output_path), None
+def plot_comparison_box(results_dict, output_path):
+    if len(results_dict) == 0:
+        return None, 'empty_results'
+    labels = list(results_dict.keys())
+    data = [results_dict[label] for label in labels]
+    fig, ax = plt.subplots(figsize=cfg.FIGURE_SIZE_ERROR, dpi=cfg.PLOT_DPI)
+    bp = ax.boxplot(data, labels=labels, patch_artist=True)
+    for patch in bp['boxes']:
+        patch.set_facecolor('steelblue')
+        patch.set_alpha(0.7)
+    for median in bp['medians']:
+        median.set_color('red')
+        median.set_linewidth(2)
+    ax.set_ylabel('Error [m]')
+    ax.set_title('Multi-Run Error Distribution')
+    ax.grid(True, alpha=0.3, axis='y')
+    plt.xticks(rotation=45, ha='right')
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, bbox_inches='tight', dpi=cfg.PLOT_DPI)
+    plt.close()
+    return str(output_path), None
+def plot_comparison_radar(results_dict, metrics_list, output_path):
+    if len(results_dict) == 0:
+        return None, 'empty_results'
+    if len(metrics_list) < 3:
+        return None, 'insufficient_metrics'
+    angles = np.linspace(0, 2 * np.pi, len(metrics_list), endpoint=False).tolist()
+    angles += angles[:1]
+    fig, ax = plt.subplots(figsize=(10, 10), dpi=cfg.PLOT_DPI, subplot_kw={'projection': 'polar'})
+    colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink']
+    for idx, (label, metrics) in enumerate(results_dict.items()):
+        values = []
+        for metric_name in metrics_list:
+            if metric_name in metrics:
+                values.append(metrics[metric_name])
+            else:
+                values.append(0.0)
+        values += values[:1]
+        color = colors[idx % len(colors)]
+        ax.plot(angles, values, 'o-', linewidth=2, label=label, color=color)
+        ax.fill(angles, values, alpha=0.15, color=color)
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(metrics_list)
+    ax.set_title('Multi-Metric Radar Comparison', pad=20)
+    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
+    ax.grid(True)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, bbox_inches='tight', dpi=cfg.PLOT_DPI)
+    plt.close()
+    return str(output_path), None
+def plot_multi_trajectory_overlay(trajectories_dict, output_path, ground_truth=None, show_3d=False):
+    if len(trajectories_dict) == 0:
+        return None, 'empty_trajectories'
+    if show_3d:
+        fig = plt.figure(figsize=cfg.FIGURE_SIZE_3D, dpi=cfg.PLOT_DPI)
+        ax = fig.add_subplot(111, projection='3d')
+    else:
+        fig, ax = plt.subplots(figsize=cfg.FIGURE_SIZE_2D, dpi=cfg.PLOT_DPI)
+    colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'cyan', 'magenta']
+    for idx, (label, poses) in enumerate(trajectories_dict.items()):
+        positions = extract_positions(poses)
+        if positions is None:
+            continue
+        color = colors[idx % len(colors)]
+        if show_3d:
+            ax.plot(positions[:, 0], positions[:, 1], positions[:, 2], linewidth=2, label=label, alpha=0.7, color=color)
+        else:
+            ax.plot(positions[:, 0], positions[:, 1], linewidth=2, label=label, alpha=0.7, color=color)
+    if ground_truth is not None:
+        gt_positions = extract_positions(ground_truth)
+        if gt_positions is not None:
+            if show_3d:
+                ax.plot(gt_positions[:, 0], gt_positions[:, 1], gt_positions[:, 2], 'k--', linewidth=2, label='Ground Truth', alpha=0.5)
+            else:
+                ax.plot(gt_positions[:, 0], gt_positions[:, 1], 'k--', linewidth=2, label='Ground Truth', alpha=0.5)
+    ax.set_xlabel('X [m]')
+    ax.set_ylabel('Y [m]')
+    if show_3d:
+        ax.set_zlabel('Z [m]')
+        ax.set_title('Multi-Trajectory Overlay (3D)')
+    else:
+        ax.set_title('Multi-Trajectory Overlay (2D)')
+        ax.axis('equal')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_path, bbox_inches='tight', dpi=cfg.PLOT_DPI)
+    plt.close()
+    return str(output_path), None
