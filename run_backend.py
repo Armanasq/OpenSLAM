@@ -2,32 +2,20 @@
 
 import sys
 import os
-import subprocess
+from pathlib import Path
 
-# Add the project root to Python path
-project_root = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, project_root)
+project_root = Path(__file__).parent.absolute()
+sys.path.insert(0, str(project_root))
 
-# Change to the project directory
 os.chdir(project_root)
 
-print("Starting OpenSLAM Backend Server...")
-print("Project root:", project_root)
-print("Python path:", sys.path[0])
+print('starting openslam backend')
+print(f'root: {project_root}')
 
-try:
-    print("Backend server starting on http://localhost:8007")
-    print("API documentation available at http://localhost:8007/docs")
-    
-    # Run uvicorn directly with the app module
-    import uvicorn
-    uvicorn.run("backend.api.main:app", host="0.0.0.0", port=8007, reload=False)
-    
-except ImportError as e:
-    print(f"Import error: {e}")
-    print("Make sure all dependencies are installed:")
-    print("pip install -r requirements.txt")
-    sys.exit(1)
-except Exception as e:
-    print(f"Error starting server: {e}")
-    sys.exit(1)
+import config
+
+print(f'backend: http://{config.BACKEND_HOST}:{config.BACKEND_PORT}')
+print(f'docs: http://{config.BACKEND_HOST}:{config.BACKEND_PORT}/docs')
+
+import uvicorn
+uvicorn.run('backend.api.main:app', host=config.BACKEND_HOST, port=config.BACKEND_PORT, reload=False, log_level=config.LOG_LEVEL.lower())
