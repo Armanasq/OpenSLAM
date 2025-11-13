@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, UploadFile, File, WebSocket, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pathlib import Path
@@ -7,368 +7,202 @@ import shutil
 import asyncio
 import numpy as np
 import sys
-import os
-from datetime import datetime
+import uuid
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import config
-from backend.core import format_detector, format_converter, gt_aligner, slam_interface, metrics, plotter
-from backend.core.dataset_manager import DatasetManager
-from backend.core.algorithm_loader import AlgorithmLoader
-from backend.core.code_executor import CodeExecutor
-from backend.core.tutorial_manager import TutorialManager
+from backend.core import format_detector, format_converter, gt_aligner, slam_interface, metrics, plotter, data_loader, visualizer
 
-app = FastAPI(title='OpenSLAM API', version='2.0.0')
-
+app = FastAPI(title='OpenSLAM', version='2.0.0')
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
 
-dataset_manager = DatasetManager()
-algorithm_loader = AlgorithmLoader()
-code_executor = CodeExecutor()
-tutorial_manager = TutorialManager()
-
-active_connections = []
-datasets_cache = {}
-algorithms_cache = {}
-results_cache = {}
-
-class ConnectionManager:
-    def __init__(self):
-        self.connections = []
-
-    async def connect(self, websocket):
-        await websocket.accept()
-        self.connections.append(websocket)
-
-    def disconnect(self, websocket):
-        if websocket in self.connections:
-            self.connections.remove(websocket)
-
-    async def send_personal_message(self, message, websocket):
-        await websocket.send_text(message)
-
-    async def broadcast(self, message):
-        for conn in self.connections:
-            await conn.send_text(message)
-
-manager = ConnectionManager()
+datasets = {}
+algorithms = {}
+runs = {}
+ws_connections = {}
 
 @app.get('/')
 def root():
-    return {'status': 'ok', 'version': '2.0.0', 'features': ['auto_detect', 'gt_alignment', 'live_viz', 'multi_algo', 'research']}
+    return {'name': 'OpenSLAM', 'version': '2.0.0', 'status': 'running'}
 
-@app.post('/api/datasets/upload')
-async def upload_dataset(file: UploadFile = File(...)):
-    upload_path = config.UPLOAD_DIR / file.filename
-    upload_path.parent.mkdir(parents=True, exist_ok=True)
-
+@app.post('/api/upload')
+async def upload(file: UploadFile = File(...)):
+    file_id = str(uuid.uuid4())[:8]
+    upload_path = config.UPLOAD_DIR / f'{file_id}_{file.filename}'
     with open(upload_path, 'wb') as f:
         shutil.copyfileobj(file.file, f)
-
     if file.filename.endswith('.zip'):
         import zipfile
-        extract_path = config.UPLOAD_DIR / file.filename.replace('.zip', '')
-        with zipfile.ZipFile(upload_path, 'r') as zip_ref:
-            zip_ref.extractall(extract_path)
-        dataset_path = extract_path
+        extract_dir = config.UPLOAD_DIR / file_id
+        with zipfile.ZipFile(upload_path, 'r') as z:
+            z.extractall(extract_dir)
+        dataset_path = extract_dir
     else:
         dataset_path = upload_path.parent
-
     fmt = format_detector.detect_format(dataset_path)
     structure = format_detector.get_dataset_structure(dataset_path)
     valid, errors = format_detector.validate_dataset(dataset_path, fmt)
+    dataset_id = file_id
+    datasets[dataset_id] = {'id': dataset_id, 'name': file.filename, 'path': str(dataset_path), 'format': fmt, 'structure': structure, 'valid': valid, 'errors': errors, 'status': 'uploaded'}
+    return {'id': dataset_id, 'name': file.filename, 'format': fmt, 'valid': valid, 'errors': errors}
 
-    dataset_id = file.filename.replace('.zip', '').replace('.', '_')
-    datasets_cache[dataset_id] = {'id': dataset_id, 'path': str(dataset_path), 'format': fmt, 'structure': structure, 'valid': valid, 'errors': errors}
-
-    return {'success': True, 'dataset_id': dataset_id, 'format': fmt, 'structure': structure, 'valid': valid, 'errors': errors}
-
-@app.post('/api/browse-directory')
-def browse_directory(request: dict):
-    path = request.get('path', '/')
-
-    if not os.path.exists(path):
-        for fallback in ['/home', '/', '/tmp']:
-            if os.path.exists(fallback):
-                path = fallback
-                break
-
-    items = []
-
-    if path != '/' and path != '':
-        parent_path = os.path.dirname(path)
-        items.append({'name': '..', 'path': parent_path, 'type': 'directory', 'is_parent': True})
-
-    for item in sorted(os.listdir(path)):
-        item_path = os.path.join(path, item)
-        if os.path.isdir(item_path) and not item.startswith('.'):
-            items.append({'name': item, 'path': item_path, 'type': 'directory', 'is_parent': False})
-
-    return {'current_path': path, 'items': items}
-
-@app.post('/api/datasets/convert')
-def convert_dataset(dataset_id: str):
-    if dataset_id not in datasets_cache:
-        return {'success': False, 'error': 'dataset not found'}
-
-    dataset_info = datasets_cache[dataset_id]
-    source_path = Path(dataset_info['path'])
-    output_path = config.DATA_DIR / dataset_id / 'converted'
-
-    converter = format_converter.DatasetConverter(source_path, output_path)
+@app.post('/api/dataset/{dataset_id}/process')
+def process_dataset(dataset_id: str):
+    if dataset_id not in datasets:
+        raise HTTPException(404, 'dataset not found')
+    ds = datasets[dataset_id]
+    source = Path(ds['path'])
+    output = config.DATA_DIR / dataset_id
+    converter = format_converter.DatasetConverter(source, output)
     data = converter.convert()
-
-    datasets_cache[dataset_id]['converted_path'] = str(output_path)
-    datasets_cache[dataset_id]['metadata'] = data
-
-    return {'success': True, 'output_path': str(output_path), 'metadata': data}
+    datasets[dataset_id]['processed_path'] = str(output)
+    datasets[dataset_id]['metadata'] = data
+    datasets[dataset_id]['status'] = 'processed'
+    return {'id': dataset_id, 'status': 'processed', 'frames': len(data.get('frames', []))}
 
 @app.get('/api/datasets')
 def list_datasets():
-    legacy_datasets = dataset_manager.list_datasets()
-    all_datasets = list(datasets_cache.values()) + legacy_datasets
-    return {'datasets': all_datasets}
+    return {'datasets': list(datasets.values())}
 
-@app.get('/api/datasets/{dataset_id}')
+@app.get('/api/dataset/{dataset_id}')
 def get_dataset(dataset_id: str):
-    if dataset_id in datasets_cache:
-        return datasets_cache[dataset_id]
-    return dataset_manager.get_dataset(dataset_id)
+    if dataset_id not in datasets:
+        raise HTTPException(404, 'dataset not found')
+    return datasets[dataset_id]
 
-@app.post('/api/datasets/load')
-def load_dataset(request: dict):
-    path = request.get('path')
-    if not path:
-        return {'success': False, 'error': 'path required'}
-
-    dataset = dataset_manager.load_kitti_dataset(path)
-    return {'id': dataset.id, 'name': dataset.name, 'format': dataset.format, 'sequence_length': dataset.sequence_length, 'sensors': dataset.sensors}
-
-@app.post('/api/algorithms/register')
-def register_algorithm(name: str, code: str, config_params: dict = {}):
-    algorithm_id = name.lower().replace(' ', '_')
-
+@app.post('/api/algorithm')
+def create_algorithm(data: dict = Body(...)):
+    name = data.get('name', 'algorithm')
+    code = data.get('code', '')
+    algo_id = str(uuid.uuid4())[:8]
     namespace = {}
     exec(code, namespace)
-
     algo_class = None
     for item in namespace.values():
         if isinstance(item, type) and issubclass(item, slam_interface.SLAMAlgorithm) and item != slam_interface.SLAMAlgorithm:
             algo_class = item
             break
-
     if algo_class is None:
-        return {'success': False, 'error': 'no valid SLAM algorithm class found'}
-
-    algorithms_cache[algorithm_id] = {'id': algorithm_id, 'name': name, 'class': algo_class, 'config': config_params}
-
-    return {'success': True, 'algorithm_id': algorithm_id}
+        raise HTTPException(400, 'no valid algorithm found')
+    algorithms[algo_id] = {'id': algo_id, 'name': name, 'class': algo_class, 'code': code}
+    return {'id': algo_id, 'name': name}
 
 @app.get('/api/algorithms')
 def list_algorithms():
-    return {'algorithms': [{'id': aid, 'name': ainfo['name']} for aid, ainfo in algorithms_cache.items()]}
-
-@app.get('/api/algorithms/library')
-def get_algorithm_library():
-    algorithms = algorithm_loader.discover_algorithms()
-    return algorithms
-
-@app.post('/api/algorithms/{plugin_id}/load')
-def load_algorithm_plugin(plugin_id: str):
-    algorithm = algorithm_loader.load_algorithm(plugin_id)
-    if algorithm is None:
-        return {'status': 'error', 'message': 'algorithm not found'}
-    return {'status': 'loaded', 'plugin_id': plugin_id}
+    return {'algorithms': [{'id': a['id'], 'name': a['name']} for a in algorithms.values()]}
 
 @app.post('/api/run')
-async def run_algorithm(dataset_id: str, algorithm_id: str, websocket_id: str = None):
-    if dataset_id not in datasets_cache:
-        return {'success': False, 'error': 'dataset not found'}
+async def run(data: dict = Body(...)):
+    dataset_id = data.get('dataset_id')
+    algorithm_id = data.get('algorithm_id')
+    if dataset_id not in datasets:
+        raise HTTPException(404, 'dataset not found')
+    if algorithm_id not in algorithms:
+        raise HTTPException(400, 'algorithm not found')
+    ds = datasets[dataset_id]
+    algo = algorithms[algorithm_id]
+    if ds.get('status') != 'processed':
+        raise HTTPException(400, 'dataset not processed')
+    run_id = str(uuid.uuid4())[:8]
+    runs[run_id] = {'id': run_id, 'dataset_id': dataset_id, 'algorithm_id': algorithm_id, 'status': 'running'}
+    asyncio.create_task(execute_run(run_id, ds, algo))
+    return {'id': run_id, 'status': 'running'}
 
-    if algorithm_id not in algorithms_cache:
-        return {'success': False, 'error': 'algorithm not found'}
-
-    dataset_info = datasets_cache[dataset_id]
-    algo_info = algorithms_cache[algorithm_id]
-
-    converted_path = dataset_info.get('converted_path')
-    if not converted_path:
-        return {'success': False, 'error': 'dataset not converted'}
-
-    dataset = slam_interface.Dataset(converted_path).load()
-    algorithm = algo_info['class']()
-
-    output_dir = config.RESULTS_DIR / f'{dataset_id}_{algorithm_id}'
-
+async def execute_run(run_id, ds, algo):
+    processed_path = ds.get('processed_path')
+    dataset = slam_interface.Dataset(processed_path).load()
+    algorithm = algo['class']()
+    output_dir = config.RESULTS_DIR / run_id
     runner = slam_interface.AlgorithmRunner(algorithm, dataset, output_dir)
-
-    async def on_frame(idx, pose_estimate, frame_data):
-        if websocket_id:
-            await broadcast_to_websocket(websocket_id, {'type': 'frame_update', 'frame_id': idx, 'pose': pose_estimate.to_dict()})
-
-    result = runner.run(on_frame=on_frame if websocket_id else None)
-
-    if result['success'] and dataset.ground_truth is not None:
-        trajectory = np.array(result['trajectory'])
-        gt = dataset.ground_truth
-
-        aligned, transform, scale = gt_aligner.align_trajectories(trajectory, gt, method='auto')
-
+    viz = visualizer.LiveVisualizer(output_dir / 'viz')
+    gt = dataset.ground_truth
+    def on_frame_sync(idx, pose_est, frame_data):
+        gt_pose = gt[idx] if gt is not None and idx < len(gt) else None
+        viz.add_pose(pose_est.timestamp, pose_est.pose, gt_pose)
+        live_data = viz.get_live_data()
+        asyncio.create_task(broadcast(run_id, {'type': 'frame', 'data': live_data}))
+    result = runner.run(on_frame=on_frame_sync)
+    runs[run_id]['status'] = 'completed' if result['success'] else 'failed'
+    runs[run_id]['result'] = result
+    if result['success'] and gt is not None:
+        traj = np.array(result['trajectory'])
+        aligned, transform, scale = gt_aligner.align_trajectories(traj, gt)
         quality = gt_aligner.compute_alignment_quality(aligned, gt)
+        mets = metrics.compute_all_metrics(aligned, gt)
+        mets['robustness'] = metrics.compute_robustness_score(aligned, gt, mets)
+        runs[run_id]['metrics'] = mets
+        runs[run_id]['alignment'] = {'quality': quality, 'scale': float(scale)}
+        plots = plotter.generate_all_plots([aligned], [algo['name']], gt, mets, output_dir / 'plots')
+        runs[run_id]['plots'] = plots
+    viz.save()
+    await broadcast(run_id, {'type': 'complete', 'data': runs[run_id]})
 
-        result['alignment'] = {'transform': transform.tolist(), 'scale': float(scale), 'quality': quality}
+@app.get('/api/run/{run_id}')
+def get_run(run_id: str):
+    if run_id not in runs:
+        raise HTTPException(404, 'run not found')
+    return runs[run_id]
 
-        metrics_result = metrics.compute_all_metrics(aligned, gt)
-        metrics_result['robustness_score'] = metrics.compute_robustness_score(aligned, gt, metrics_result)
-
-        result['metrics'] = metrics_result
-
-        plots = plotter.generate_all_plots([aligned], [algo_info['name']], gt, metrics_result, output_dir / 'plots')
-        result['plots'] = plots
-
-    run_id = f'{dataset_id}_{algorithm_id}'
-    results_cache[run_id] = result
-
-    return result
+@app.get('/api/runs')
+def list_runs():
+    return {'runs': list(runs.values())}
 
 @app.post('/api/compare')
-def compare_algorithms(dataset_id: str, algorithm_ids: list):
-    if dataset_id not in datasets_cache:
-        return {'success': False, 'error': 'dataset not found'}
-
-    results_list = []
-
-    for algo_id in algorithm_ids:
-        run_id = f'{dataset_id}_{algo_id}'
-        if run_id in results_cache:
-            result = results_cache[run_id]
-            result['label'] = algorithms_cache[algo_id]['name']
-            results_list.append(result)
-
-    if len(results_list) < 2:
-        return {'success': False, 'error': 'need at least 2 results to compare'}
-
-    output_dir = config.RESULTS_DIR / f'{dataset_id}_comparison'
-
-    plots = plotter.create_comparison_plots(results_list, output_dir)
-
-    comparison = {'results': results_list, 'plots': plots}
-
-    if len(results_list) == 2:
-        comparison['statistical_test'] = metrics.statistical_comparison([results_list[0]['metrics']], [results_list[1]['metrics']])
-
+def compare(data: dict = Body(...)):
+    run_ids = data.get('run_ids', [])
+    if len(run_ids) < 2:
+        raise HTTPException(400, 'need at least 2 runs')
+    results = []
+    for rid in run_ids:
+        if rid not in runs:
+            continue
+        run = runs[rid]
+        if 'result' not in run:
+            continue
+        algo_name = algorithms[run['algorithm_id']]['name']
+        results.append({'label': algo_name, 'trajectory': run['result']['trajectory'], 'metrics': run.get('metrics', {}), 'ground_truth': datasets[run['dataset_id']].get('metadata', {}).get('ground_truth')})
+    if len(results) < 2:
+        raise HTTPException(400, 'not enough completed runs')
+    comp_id = str(uuid.uuid4())[:8]
+    output_dir = config.RESULTS_DIR / f'compare_{comp_id}'
+    plots = plotter.create_comparison_plots(results, output_dir)
+    comparison = {'id': comp_id, 'results': results, 'plots': plots}
+    if len(results) == 2:
+        comparison['stats'] = metrics.statistical_comparison([results[0]['metrics']], [results[1]['metrics']])
     return comparison
 
-@app.post('/api/task/evaluate')
-def evaluate_task(dataset_id: str, algorithm_id: str, task_type: str = 'navigation'):
-    run_id = f'{dataset_id}_{algorithm_id}'
-
-    if run_id not in results_cache:
-        return {'success': False, 'error': 'run not found'}
-
-    result = results_cache[run_id]
-
-    if 'trajectory' not in result:
-        return {'success': False, 'error': 'no trajectory in result'}
-
-    dataset_info = datasets_cache[dataset_id]
-    dataset = slam_interface.Dataset(dataset_info.get('converted_path')).load()
-
-    if dataset.ground_truth is None:
-        return {'success': False, 'error': 'no ground truth available'}
-
-    trajectory = np.array(result['trajectory'])
-    gt = dataset.ground_truth
-
-    tas = metrics.compute_task_alignment_score(trajectory, gt, task_type)
-
-    requirements = config.TASK_REQUIREMENTS.get(task_type, {})
-
-    evaluation = {'task_type': task_type, 'tas': tas, 'requirements': requirements, 'meets_requirements': tas >= 70}
-
-    return evaluation
-
-@app.get('/api/results/{run_id}')
-def get_result(run_id: str):
-    if run_id not in results_cache:
-        return {'success': False, 'error': 'result not found'}
-    return results_cache[run_id]
-
-@app.get('/api/plots/{run_id}/{plot_type}')
-def get_plot(run_id: str, plot_type: str):
-    if run_id not in results_cache:
-        return {'error': 'result not found'}
-
-    result = results_cache[run_id]
-    plots = result.get('plots', {})
-
-    if plot_type not in plots:
-        return {'error': 'plot not found'}
-
-    plot_path = Path(plots[plot_type])
-
+@app.get('/api/plot/{path:path}')
+def get_plot(path: str):
+    plot_path = config.RESULTS_DIR / path
     if not plot_path.exists():
-        return {'error': 'plot file not found'}
-
+        raise HTTPException(404, 'plot not found')
     return FileResponse(plot_path)
 
-@app.get('/api/tutorials')
-def get_tutorials():
-    tutorials = tutorial_manager.get_tutorial_list('default_user')
-    return tutorials
-
-@app.get('/api/tutorials/{tutorial_id}')
-def get_tutorial(tutorial_id: str):
-    result = tutorial_manager.start_tutorial('default_user', tutorial_id)
-    return result
-
-@app.get('/api/tutorials/{tutorial_id}/step/{step_index}')
-def get_tutorial_step(tutorial_id: str, step_index: int):
-    result = tutorial_manager.get_tutorial_step('default_user', tutorial_id, step_index)
-    return result
-
-@app.post('/api/tutorials/{tutorial_id}/step/{step_index}/submit')
-def submit_tutorial_solution(tutorial_id: str, step_index: int, request: dict):
-    code = request.get('code', '')
-    execution_result = code_executor.execute_code(code)
-    result = tutorial_manager.submit_step_solution('default_user', tutorial_id, step_index, code, {'success': execution_result.success, 'output': execution_result.output, 'error': execution_result.error})
-    return result
-
-@app.post('/api/execute-code')
-def execute_code_endpoint(request: dict):
-    code = request.get('code', '')
-    result = code_executor.execute_code(code)
-    return {'success': result.success, 'output': result.output, 'error': result.error, 'execution_time': result.execution_time}
-
-@app.websocket('/ws')
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    while True:
-        data = await websocket.receive_text()
-        message = json.loads(data)
-        if message.get('type') == 'ping':
-            await manager.send_personal_message(json.dumps({'type': 'pong'}), websocket)
-
 @app.websocket('/ws/{client_id}')
-async def websocket_client_endpoint(websocket: WebSocket, client_id: str):
+async def websocket(websocket: WebSocket, client_id: str):
     await websocket.accept()
-    active_connections.append({'id': client_id, 'websocket': websocket})
-
+    ws_connections[client_id] = websocket
     while True:
-        data = await websocket.receive_text()
-        message = json.loads(data)
+        try:
+            data = await websocket.receive_text()
+            msg = json.loads(data)
+            if msg.get('type') == 'ping':
+                await websocket.send_json({'type': 'pong'})
+        except:
+            break
+    if client_id in ws_connections:
+        del ws_connections[client_id]
 
-        if message.get('type') == 'ping':
-            await websocket.send_json({'type': 'pong'})
-
-async def broadcast_to_websocket(client_id: str, message: dict):
-    for conn in active_connections:
-        if conn['id'] == client_id:
-            await conn['websocket'].send_json(message)
+async def broadcast(run_id, message):
+    for ws in ws_connections.values():
+        try:
+            await ws.send_json({'run_id': run_id, **message})
+        except:
+            pass
 
 @app.on_event('startup')
-async def startup():
+def startup():
     for d in [config.UPLOAD_DIR, config.DATA_DIR, config.RESULTS_DIR]:
         Path(d).mkdir(parents=True, exist_ok=True)
 
