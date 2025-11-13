@@ -4,6 +4,8 @@ import numpy as np
 from pathlib import Path
 import openslam_config as cfg
 from core import dataset_loader, trajectory, metrics, visualization, motion_analysis, scene_analysis, export, format_converter, statistical_analysis, task_metrics, batch
+from core.plugin_manager import PluginManager
+from core.plugin_executor import PluginExecutor
 def format_number(value, decimals=None):
     if decimals is None:
         decimals = cfg.PRECISION_DECIMALS
@@ -401,6 +403,107 @@ def batch_evaluation_command(config_path, parallel=1):
             print(f'  Results: {result}')
     print()
     return 0
+def list_plugins_command():
+    print_header('Available Plugins')
+    manager = PluginManager()
+    plugins, error = manager.list_plugins()
+    if error:
+        print(f'Error listing plugins: {error}')
+        return 1
+    if len(plugins) == 0:
+        print('No plugins found')
+        print(f'Create plugins in: {manager.plugin_dir}')
+        return 0
+    for plugin in plugins:
+        print_section(plugin['name'])
+        print_metric('Version', plugin['version'])
+        if plugin['description']:
+            print_metric('Description', plugin['description'])
+        print_metric('Input Types', ', '.join(plugin['input_types']))
+        print_metric('Output Format', plugin['output_format'])
+    print()
+    return 0
+def run_plugin_command(plugin_name, dataset_path, format_type=None, output_dir=None):
+    print_header(f'Running Plugin: {plugin_name}')
+    executor = PluginExecutor(plugin_name)
+    print_section('Loading Plugin')
+    load_result, error = executor.load()
+    if error:
+        print(f'Error loading plugin: {error}')
+        return 1
+    print_metric('Plugin', executor.plugin['config']['name'])
+    print_metric('Version', executor.plugin['config']['version'])
+    print_section('Processing Dataset')
+    print_metric('Dataset', dataset_path)
+    result, error = executor.run_on_dataset(dataset_path, dataset_format=format_type)
+    if error:
+        print(f'Error running plugin: {error}')
+        return 1
+    print_section('Results')
+    print_metric('Frames Processed', result['frames_processed'])
+    print_metric('Total Frames', result['total_frames'])
+    print_metric('Avg Processing Time', np.mean(result['processing_times']), 's/frame')
+    print_metric('Max Processing Time', np.max(result['processing_times']), 's/frame')
+    if output_dir:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print_section('Saving Results')
+        traj_path = output_dir / f'{plugin_name}_trajectory.txt'
+        np.savetxt(traj_path, result['trajectory'].reshape(-1, 16))
+        print(f'  Trajectory: {traj_path}')
+        if result['timestamps'] is not None:
+            times_path = output_dir / f'{plugin_name}_timestamps.txt'
+            np.savetxt(times_path, result['timestamps'])
+            print(f'  Timestamps: {times_path}')
+    print()
+    return 0
+def evaluate_plugin_command(plugin_name, dataset_path, ground_truth_path, format_type=None, output_dir=None):
+    print_header(f'Evaluating Plugin: {plugin_name}')
+    executor = PluginExecutor(plugin_name)
+    print_section('Loading Plugin')
+    load_result, error = executor.load()
+    if error:
+        print(f'Error loading plugin: {error}')
+        return 1
+    print_metric('Plugin', executor.plugin['config']['name'])
+    print_metric('Version', executor.plugin['config']['version'])
+    print_section('Running Evaluation')
+    print_metric('Dataset', dataset_path)
+    print_metric('Ground Truth', ground_truth_path)
+    eval_results, error = executor.evaluate_on_dataset(dataset_path, ground_truth_path, dataset_format=format_type)
+    if error:
+        print(f'Error evaluating plugin: {error}')
+        return 1
+    print_section('Performance Metrics')
+    print_metric('Frames Processed', eval_results['frames_processed'])
+    print_metric('Total Frames', eval_results['total_frames'])
+    print_metric('Avg Processing Time', eval_results['avg_processing_time'], 's/frame')
+    print_section('ATE Metrics')
+    ate = eval_results['ate']
+    print_metric('RMSE', ate['rmse'], 'm')
+    print_metric('Mean', ate['mean'], 'm')
+    print_metric('Median', ate['median'], 'm')
+    print_metric('Std Dev', ate['std'], 'm')
+    if eval_results.get('rpe') is not None:
+        print_section('RPE Metrics')
+        for delta_key, rpe in eval_results['rpe'].items():
+            print(f'\n  Delta = {rpe["delta"]} {rpe["unit"]}:')
+            print_metric('    Translation RMSE', rpe['translation']['rmse'], 'm')
+            print_metric('    Rotation RMSE', rpe['rotation']['rmse'], 'deg')
+    if eval_results.get('robustness') is not None:
+        print_section('Robustness Analysis')
+        print_metric('Robustness Score', eval_results['robustness']['score'])
+        print_metric('Failure Count', eval_results['failures']['count'])
+    if output_dir:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print_section('Exporting Results')
+        json_path = output_dir / f'{plugin_name}_results.json'
+        result, error = export.export_to_json(eval_results, json_path)
+        if not error:
+            print(f'  JSON: {result}')
+    print()
+    return 0
 def main():
     parser = argparse.ArgumentParser(description='OpenSLAM: Research-Grade SLAM Evaluation System', formatter_class=argparse.RawDescriptionHelpFormatter)
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -433,6 +536,18 @@ def main():
     batch_parser = subparsers.add_parser('batch', help='Run batch evaluation from YAML config')
     batch_parser.add_argument('config', type=str, help='Path to YAML configuration file')
     batch_parser.add_argument('--parallel', type=int, default=1, help='Number of parallel workers')
+    list_plugins_parser = subparsers.add_parser('list-plugins', help='List available SLAM plugins')
+    run_plugin_parser = subparsers.add_parser('run-plugin', help='Run SLAM plugin on dataset')
+    run_plugin_parser.add_argument('plugin', type=str, help='Plugin name')
+    run_plugin_parser.add_argument('--dataset', type=str, required=True, help='Path to dataset')
+    run_plugin_parser.add_argument('--format', type=str, default=None, help='Dataset format (kitti, tum, euroc)')
+    run_plugin_parser.add_argument('--output', type=str, default=None, help='Output directory for results')
+    eval_plugin_parser = subparsers.add_parser('eval-plugin', help='Evaluate SLAM plugin')
+    eval_plugin_parser.add_argument('plugin', type=str, help='Plugin name')
+    eval_plugin_parser.add_argument('--dataset', type=str, required=True, help='Path to dataset')
+    eval_plugin_parser.add_argument('--ground-truth', type=str, required=True, help='Path to ground truth')
+    eval_plugin_parser.add_argument('--format', type=str, default=None, help='Dataset format (kitti, tum, euroc)')
+    eval_plugin_parser.add_argument('--output', type=str, default=None, help='Output directory for results')
     args = parser.parse_args()
     if args.command == 'preview':
         return preview_dataset(args.dataset, format_type=args.format, plot=args.plot, detailed=args.detailed)
@@ -446,6 +561,12 @@ def main():
         return analyze_failures_command(args.result, args.ground_truth, format_type=args.format, output_dir=args.output)
     elif args.command == 'batch':
         return batch_evaluation_command(args.config, parallel=args.parallel)
+    elif args.command == 'list-plugins':
+        return list_plugins_command()
+    elif args.command == 'run-plugin':
+        return run_plugin_command(args.plugin, args.dataset, format_type=args.format, output_dir=args.output)
+    elif args.command == 'eval-plugin':
+        return evaluate_plugin_command(args.plugin, args.dataset, args.ground_truth, format_type=args.format, output_dir=args.output)
     else:
         parser.print_help()
         return 1
