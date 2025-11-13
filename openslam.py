@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 from pathlib import Path
 import openslam_config as cfg
-from core import dataset_loader, trajectory, metrics, visualization, motion_analysis, scene_analysis, export, format_converter
+from core import dataset_loader, trajectory, metrics, visualization, motion_analysis, scene_analysis, export, format_converter, statistical_analysis, task_metrics, batch
 def format_number(value, decimals=None):
     if decimals is None:
         decimals = cfg.PRECISION_DECIMALS
@@ -225,6 +225,10 @@ def evaluate_trajectory(estimated_path, ground_truth_path, format_type=None, ali
         result, error = export.export_to_latex(eval_results, latex_path)
         if not error:
             print(f'  LaTeX: {result}')
+        hdf5_path = output_dir / 'results.h5'
+        result, error = export.export_to_hdf5(eval_results, hdf5_path)
+        if not error:
+            print(f'  HDF5: {result}')
     print()
     return 0
 def convert_format_command(input_path, output_path, input_format, output_format):
@@ -316,6 +320,87 @@ def compare_trajectories(ground_truth_path, estimated_paths, format_type=None, o
             print(f'  JSON: {result}')
     print()
     return 0
+def analyze_failures_command(result_path, ground_truth_path, format_type=None, output_dir=None):
+    print_header('Failure Analysis')
+    print_section('Loading Data')
+    est_dataset, error = dataset_loader.load_dataset(result_path, format_type)
+    if error:
+        print(f'Error loading result: {error}')
+        return 1
+    gt_dataset, error = dataset_loader.load_dataset(ground_truth_path, format_type)
+    if error:
+        print(f'Error loading ground truth: {error}')
+        return 1
+    if 'sequences' in est_dataset:
+        est_poses = est_dataset['sequences'][0]['poses']
+    else:
+        est_poses = est_dataset['poses']
+    if 'sequences' in gt_dataset:
+        gt_poses = gt_dataset['sequences'][0]['poses']
+    else:
+        gt_poses = gt_dataset['poses']
+    align_result, error = trajectory.align_trajectories(est_poses, gt_poses, method=cfg.DEFAULT_ALIGNMENT)
+    if error:
+        print(f'Error aligning: {error}')
+        return 1
+    est_poses = align_result['aligned_poses']
+    ate_result, error = metrics.compute_ate(est_poses, gt_poses)
+    if error:
+        print(f'Error computing ATE: {error}')
+        return 1
+    failure_info, error = metrics.detect_failures(ate_result['errors'])
+    if error:
+        print(f'Error detecting failures: {error}')
+        return 1
+    print_section('Failure Detection Results')
+    print_metric('Total Failures', failure_info['count'])
+    print_metric('Total Duration', failure_info['total_duration'], 'frames')
+    print_metric('Failure Rate', failure_info['failure_rate'])
+    if failure_info['count'] > 0:
+        print_section('Failure Events')
+        for i, event in enumerate(failure_info['events'][:10]):
+            print(f"  Event {i+1}: frames {event['start']}-{event['end']} (duration: {event['duration']} frames)")
+        if len(failure_info['events']) > 10:
+            print(f'  ... and {len(failure_info["events"]) - 10} more events')
+    if output_dir:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        failure_timeline_path = output_dir / 'failure_timeline.png'
+        result, error = visualization.plot_error_over_frames(ate_result['errors'], failure_timeline_path, title='Failure Timeline')
+        if not error:
+            print_section('Visualization')
+            print(f'  Failure Timeline: {result}')
+    print()
+    return 0
+def batch_evaluation_command(config_path, parallel=1):
+    print_header('Batch Evaluation')
+    print_section('Loading Configuration')
+    config, error = batch.load_batch_config(config_path)
+    if error:
+        print(f'Error loading config: {error}')
+        return 1
+    print_metric('Datasets', len(config['datasets']))
+    print_metric('Algorithms', len(config['algorithms']))
+    print_metric('Parallel Workers', parallel)
+    print_section('Running Evaluations')
+    batch_result, error = batch.run_batch_evaluation(config, parallel=parallel)
+    if error:
+        print(f'Error running batch: {error}')
+        return 1
+    print_section('Batch Results')
+    print_metric('Total Evaluations', batch_result['total_evaluations'])
+    print_metric('Successful', batch_result['successful'])
+    print_metric('Failed', batch_result['total_evaluations'] - batch_result['successful'])
+    if config.get('output'):
+        output_dir = Path(config['output']['directory'])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print_section('Exporting Results')
+        results_json = output_dir / 'batch_results.json'
+        result, error = export.export_to_json(batch_result, results_json)
+        if not error:
+            print(f'  Results: {result}')
+    print()
+    return 0
 def main():
     parser = argparse.ArgumentParser(description='OpenSLAM: Research-Grade SLAM Evaluation System', formatter_class=argparse.RawDescriptionHelpFormatter)
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -340,6 +425,14 @@ def main():
     compare_parser.add_argument('trajectories', nargs='+', help='Paths to estimated trajectories')
     compare_parser.add_argument('--format', type=str, default=None, help='Dataset format (kitti, tum, euroc)')
     compare_parser.add_argument('--output', type=str, default=None, help='Output directory for results')
+    analyze_failures_parser = subparsers.add_parser('analyze-failures', help='Analyze failure events in trajectory')
+    analyze_failures_parser.add_argument('result', type=str, help='Path to estimated trajectory')
+    analyze_failures_parser.add_argument('ground_truth', type=str, help='Path to ground truth')
+    analyze_failures_parser.add_argument('--format', type=str, default=None, help='Dataset format (kitti, tum, euroc)')
+    analyze_failures_parser.add_argument('--output', type=str, default=None, help='Output directory for visualizations')
+    batch_parser = subparsers.add_parser('batch', help='Run batch evaluation from YAML config')
+    batch_parser.add_argument('config', type=str, help='Path to YAML configuration file')
+    batch_parser.add_argument('--parallel', type=int, default=1, help='Number of parallel workers')
     args = parser.parse_args()
     if args.command == 'preview':
         return preview_dataset(args.dataset, format_type=args.format, plot=args.plot, detailed=args.detailed)
@@ -349,6 +442,10 @@ def main():
         return convert_format_command(args.input, args.output, args.input_format, args.output_format)
     elif args.command == 'compare':
         return compare_trajectories(args.ground_truth, args.trajectories, format_type=args.format, output_dir=args.output)
+    elif args.command == 'analyze-failures':
+        return analyze_failures_command(args.result, args.ground_truth, format_type=args.format, output_dir=args.output)
+    elif args.command == 'batch':
+        return batch_evaluation_command(args.config, parallel=args.parallel)
     else:
         parser.print_help()
         return 1

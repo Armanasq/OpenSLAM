@@ -3,6 +3,7 @@ import csv
 from pathlib import Path
 import numpy as np
 import openslam_config as cfg
+import h5py
 def export_to_json(results, output_path):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -124,4 +125,44 @@ def export_comparison_table(results_list, output_path, style='plain'):
     lines.append('\\end{table}')
     with open(output_path, 'w') as f:
         f.write('\n'.join(lines))
+    return str(output_path), None
+def export_to_hdf5(results, output_path):
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with h5py.File(output_path, 'w') as f:
+        if 'ate' in results:
+            ate_group = f.create_group('ate')
+            ate_group.create_dataset('rmse', data=results['ate']['rmse'])
+            ate_group.create_dataset('mean', data=results['ate']['mean'])
+            ate_group.create_dataset('median', data=results['ate']['median'])
+            ate_group.create_dataset('std', data=results['ate']['std'])
+            ate_group.create_dataset('max', data=results['ate']['max'])
+            ate_group.create_dataset('min', data=results['ate']['min'])
+            ate_group.create_dataset('errors', data=results['ate']['errors'])
+        if 'rpe' in results and results['rpe'] is not None:
+            rpe_group = f.create_group('rpe')
+            for delta_key, rpe in results['rpe'].items():
+                delta_group = rpe_group.create_group(delta_key)
+                delta_group.create_dataset('delta', data=rpe['delta'])
+                delta_group.attrs['unit'] = rpe['unit']
+                trans_group = delta_group.create_group('translation')
+                trans_group.create_dataset('rmse', data=rpe['translation']['rmse'])
+                trans_group.create_dataset('mean', data=rpe['translation']['mean'])
+                trans_group.create_dataset('median', data=rpe['translation']['median'])
+                trans_group.create_dataset('std', data=rpe['translation']['std'])
+                trans_group.create_dataset('errors', data=rpe['translation']['errors'])
+                rot_group = delta_group.create_group('rotation')
+                rot_group.create_dataset('rmse', data=rpe['rotation']['rmse'])
+                rot_group.create_dataset('mean', data=rpe['rotation']['mean'])
+                rot_group.create_dataset('median', data=rpe['rotation']['median'])
+                rot_group.create_dataset('std', data=rpe['rotation']['std'])
+                rot_group.create_dataset('errors', data=rpe['rotation']['errors'])
+        if 'robustness' in results and results['robustness'] is not None:
+            rob_group = f.create_group('robustness')
+            rob_group.create_dataset('score', data=results['robustness']['score'])
+            if 'completion' in results:
+                rob_group.create_dataset('completion_rate', data=results['completion']['completion_rate'])
+            if 'failures' in results:
+                rob_group.create_dataset('failure_count', data=results['failures']['count'])
+                rob_group.create_dataset('failure_rate', data=results['failures']['failure_rate'])
     return str(output_path), None

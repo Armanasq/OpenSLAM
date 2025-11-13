@@ -1,0 +1,17 @@
+datasets:
+  - name: test_circular
+    path: data/test/ground_truth_kitti.txt
+    format: kitti
+algorithms:
+  - name: algorithm_1
+    results: data/test/algo1_result.txt
+  - name: algorithm_2
+    results: data/test/algo2_result.txt
+  - name: algorithm_3
+    results: data/test/algo3_result.txt
+output:
+  directory: results/batch_evaluation
+  formats:
+    - json
+    - csv
+    - latex
