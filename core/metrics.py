@@ -71,7 +71,7 @@ def detect_failures(ate_errors, threshold=None):
     failures = ate_errors > threshold
     failure_indices = np.where(failures)[0]
     if len(failure_indices) == 0:
-        return {'count': 0, 'indices': [], 'durations': [], 'total_duration': 0}, None
+        return {'count': 0, 'events': [], 'total_duration': 0, 'failure_rate': 0.0}, None
     failure_events = []
     start_idx = failure_indices[0]
     for i in range(1, len(failure_indices)):

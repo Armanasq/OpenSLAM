@@ -20,3 +20,9 @@ htmlcov/
 venv/
 ENV/
 test_websocket.py
+data/test/
+plots/
+results/
+cache/
+temp/
+uploads/

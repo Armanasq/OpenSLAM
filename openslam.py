@@ -29,10 +29,10 @@ def preview_dataset(dataset_path, format_type=None, plot=False):
     print_metric('Name', info['name'])
     print_metric('Format', info['format'])
     print_metric('Path', info['path'])
-    if 'sequences' in info:
+    if 'total_frames' in info:
         print_metric('Sequences', info['sequences'])
         print_metric('Total Frames', info['total_frames'])
-    else:
+    elif 'frames' in info:
         print_metric('Frames', info['frames'])
     if 'duration' in info:
         print_metric('Duration', info['duration'], 's')
