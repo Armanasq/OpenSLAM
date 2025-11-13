@@ -4,9 +4,14 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pathlib import Path
 import json
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import config
 
-plt.style.use(config.PLOT_STYLE)
+try:
+    plt.style.use(config.PLOT_STYLE)
+except:
+    plt.style.use('default')
 
 def plot_trajectory_2d(trajectories, labels, ground_truth=None, output_path=None):
     fig, ax = plt.subplots(figsize=(10, 10), dpi=config.PLOT_DPI)

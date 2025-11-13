@@ -13,8 +13,14 @@ import uuid
 import time
 import hashlib
 import re
+import os
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-import config
+BASE_DIR = Path(__file__).parent.parent.parent.absolute()
+UPLOAD_DIR = BASE_DIR / 'uploads'
+DATA_DIR = BASE_DIR / 'data'
+RESULTS_DIR = BASE_DIR / 'results'
+BACKEND_HOST = os.getenv('OPENSLAM_BACKEND_HOST', '0.0.0.0')
+BACKEND_PORT = int(os.getenv('OPENSLAM_BACKEND_PORT', 8007))
 from backend.core import format_detector, format_converter, gt_aligner, slam_interface, metrics, plotter, data_loader, visualizer
 app = FastAPI(title='openslam', version='2.0.0', description='research-grade slam evaluation platform')
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
@@ -66,19 +72,19 @@ async def load_dataset(data: dict = Body(...)):
 @app.post('/api/upload')
 async def upload(file: UploadFile = File(...)):
     file_id = str(uuid.uuid4())[:8]
-    upload_path = config.UPLOAD_DIR / f'{file_id}_{file.filename}'
+    upload_path = UPLOAD_DIR / f'{file_id}_{file.filename}'
     with open(upload_path, 'wb') as f:
         shutil.copyfileobj(file.file, f)
     if file.filename.endswith('.zip'):
         import zipfile
-        extract_dir = config.UPLOAD_DIR / file_id
+        extract_dir = UPLOAD_DIR / file_id
         with zipfile.ZipFile(upload_path, 'r') as z:
             z.extractall(extract_dir)
         dataset_path = extract_dir
         upload_path.unlink()
     elif file.filename.endswith('.tar.gz'):
         import tarfile
-        extract_dir = config.UPLOAD_DIR / file_id
+        extract_dir = UPLOAD_DIR / file_id
         with tarfile.open(upload_path, 'r:gz') as t:
             t.extractall(extract_dir)
         dataset_path = extract_dir
@@ -103,7 +109,7 @@ async def process_dataset(dataset_id: str):
     if ds['status'] == 'processing':
         raise HTTPException(400, 'dataset already processing')
     source = Path(ds['path'])
-    output = config.DATA_DIR / dataset_id
+    output = DATA_DIR / dataset_id
     output.mkdir(parents=True, exist_ok=True)
     datasets[dataset_id]['status'] = 'processing'
     datasets[dataset_id]['updated'] = datetime.now().isoformat()
@@ -358,7 +364,7 @@ def get_comparison(comp_id: str):
     return comparisons[comp_id]
 @app.get('/api/plot/{run_id}/{plot_name}')
 def get_plot(run_id: str, plot_name: str):
-    plot_path = config.RESULTS_DIR / run_id / 'plots' / plot_name
+    plot_path = RESULTS_DIR / run_id / 'plots' / plot_name
     if not plot_path.exists():
         raise HTTPException(404, 'plot not found')
     return FileResponse(plot_path)
@@ -430,7 +436,7 @@ async def _execute_run(run_id: str, ds: dict, algo: dict, config_override: dict,
         runs[run_id]['progress'] = 0
         _log_activity('started', 'run', run_id)
         await _broadcast_update({'type': 'run_update', 'run_id': run_id, 'status': 'running', 'progress': 0})
-        output_dir = config.RESULTS_DIR / run_id
+        output_dir = RESULTS_DIR / run_id
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / 'plots').mkdir(parents=True, exist_ok=True)
         total_frames = ds['frames']
@@ -500,11 +506,11 @@ def _compute_rankings(runs_list: List[dict]) -> List[dict]:
     return scored
 @app.on_event('startup')
 async def startup():
-    for d in [config.UPLOAD_DIR, config.DATA_DIR, config.RESULTS_DIR]:
+    for d in [UPLOAD_DIR, DATA_DIR, RESULTS_DIR]:
         Path(d).mkdir(parents=True, exist_ok=True)
     print(f'\033[1;32m✓ openslam v2.0 started\033[0m')
-    print(f'  api: http://{config.BACKEND_HOST}:{config.BACKEND_PORT}')
-    print(f'  docs: http://{config.BACKEND_HOST}:{config.BACKEND_PORT}/docs')
+    print(f'  api: http://{BACKEND_HOST}:{BACKEND_PORT}')
+    print(f'  docs: http://{BACKEND_HOST}:{BACKEND_PORT}/docs')
 @app.on_event('shutdown')
 async def shutdown():
     for client_id, conn in list(ws_connections.items()):
@@ -515,4 +521,7 @@ async def shutdown():
     print(f'\033[1;33m✓ openslam v2.0 shutdown complete\033[0m')
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app, host=config.BACKEND_HOST, port=config.BACKEND_PORT)
+    import os
+    host = os.getenv('OPENSLAM_BACKEND_HOST', '0.0.0.0')
+    port = int(os.getenv('OPENSLAM_BACKEND_PORT', 8007))
+    uvicorn.run(app, host=host, port=port)
