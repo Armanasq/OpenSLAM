@@ -263,7 +263,7 @@ async def delete_algorithm(algorithm_id: str):
     return {'id': algorithm_id, 'status': 'deleted'}
 @app.get('/api/algorithm/templates')
 def get_algorithm_templates():
-    templates = {'orb_slam': {'name': 'ORB-SLAM3 Template', 'code': 'class ORBSLAM3:\n    def initialize(self, cfg):\n        pass\n    def process_frame(self, frame_data):\n        return None\n    def finalize(self):\n        return {}', 'params': {'features': 1000, 'levels': 8}}, 'vins_fusion': {'name': 'VINS-Fusion Template', 'code': 'class VINSFusion:\n    def initialize(self, cfg):\n        pass\n    def process_frame(self, frame_data):\n        return None\n    def finalize(self):\n        return {}', 'params': {'max_features': 150}}, 'custom': {'name': 'Custom Template', 'code': 'class CustomSLAM:\n    def initialize(self, cfg):\n        pass\n    def process_frame(self, frame_data):\n        return None\n    def finalize(self):\n        return {}', 'params': {}}}
+    templates = [{'name': 'ORB-SLAM3 Template', 'type': 'visual', 'description': 'feature-based visual slam with loop closure', 'code': 'class ORBSLAM3:\n    def initialize(self, cfg):\n        pass\n    def process_frame(self, frame_data):\n        return None\n    def finalize(self):\n        return {}', 'params': {'features': 1000, 'levels': 8}}, {'name': 'VINS-Fusion Template', 'type': 'visual-inertial', 'description': 'visual-inertial slam with optimization', 'code': 'class VINSFusion:\n    def initialize(self, cfg):\n        pass\n    def process_frame(self, frame_data):\n        return None\n    def finalize(self):\n        return {}', 'params': {'max_features': 150}}, {'name': 'Custom Template', 'type': 'custom', 'description': 'blank template for custom implementation', 'code': 'class CustomSLAM:\n    def initialize(self, cfg):\n        pass\n    def process_frame(self, frame_data):\n        return None\n    def finalize(self):\n        return {}', 'params': {}}]
     return {'templates': templates}
 @app.post('/api/run')
 async def create_run(data: dict = Body(...)):
@@ -283,7 +283,8 @@ async def create_run(data: dict = Body(...)):
     if ds['status'] != 'processed':
         raise HTTPException(400, 'dataset not processed')
     run_id = str(uuid.uuid4())[:8]
-    runs[run_id] = {'id': run_id, 'dataset_id': dataset_id, 'dataset_name': ds['name'], 'algorithm_id': algorithm_id, 'algorithm_name': algo['name'], 'status': 'queued', 'priority': priority, 'task_type': task_type, 'config': config_override, 'timestamp': datetime.now().isoformat(), 'started': None, 'completed': None, 'progress': 0, 'current_frame': 0, 'total_frames': ds['frames'], 'metrics': {}, 'plots': [], 'error': None, 'duration': 0, 'failure_events': [], 'robustness_timeline': [], 'task_alignment': {}}
+    timestamp_now = datetime.now().isoformat()
+    runs[run_id] = {'id': run_id, 'dataset_id': dataset_id, 'dataset_name': ds['name'], 'algorithm_id': algorithm_id, 'algorithm_name': algo['name'], 'status': 'queued', 'priority': priority, 'task_type': task_type, 'config': config_override, 'timestamp': timestamp_now, 'created': timestamp_now, 'updated': timestamp_now, 'started': None, 'completed': None, 'progress': 0, 'current_frame': 0, 'total_frames': ds['frames'], 'metrics': {}, 'plots': [], 'error': None, 'duration': 0, 'failure_events': [], 'robustness_timeline': [], 'task_alignment': {}}
     _log_activity('created', 'run', run_id, {'dataset': ds['name'], 'algorithm': algo['name']})
     await _broadcast_update({'type': 'run_created', 'run': runs[run_id]})
     asyncio.create_task(_execute_run(run_id, ds, algo, config_override, task_type))
@@ -299,9 +300,12 @@ def list_runs(status: Optional[str] = Query(None), dataset_id: Optional[str] = Q
         filtered = [r for r in filtered if r['algorithm_id'] == algorithm_id]
     if task_type:
         filtered = [r for r in filtered if r.get('task_type') == task_type]
-    if sort in ['timestamp', 'started', 'completed', 'duration']:
+    if sort in ['timestamp', 'created', 'updated', 'started', 'completed', 'duration']:
         reverse = order == 'desc'
-        filtered.sort(key=lambda x: x.get(sort, '') or '', reverse=reverse)
+        if sort == 'duration':
+            filtered.sort(key=lambda x: x.get(sort, 0), reverse=reverse)
+        else:
+            filtered.sort(key=lambda x: x.get(sort, '') or '', reverse=reverse)
     total = len(filtered)
     paginated = filtered[offset:offset + limit]
     return {'runs': paginated, 'total': total, 'limit': limit, 'offset': offset}
@@ -326,6 +330,7 @@ async def cancel_run(run_id: str):
         raise HTTPException(400, 'run cannot be cancelled')
     runs[run_id]['status'] = 'cancelled'
     runs[run_id]['completed'] = datetime.now().isoformat()
+    runs[run_id]['updated'] = datetime.now().isoformat()
     _log_activity('cancelled', 'run', run_id)
     await _broadcast_update({'type': 'run_cancelled', 'run_id': run_id})
     return runs[run_id]
@@ -339,7 +344,7 @@ async def compare_runs(data: dict = Body(...)):
     if len(valid_runs) < 2:
         raise HTTPException(400, 'not enough completed runs')
     comp_id = str(uuid.uuid4())[:8]
-    comparison = {'id': comp_id, 'run_ids': run_ids, 'type': comparison_type, 'runs': valid_runs, 'timestamp': datetime.now().isoformat(), 'statistics': _compute_comparison_statistics(valid_runs), 'rankings': _compute_rankings(valid_runs)}
+    comparison = {'id': comp_id, 'run_ids': run_ids, 'type': comparison_type, 'runs': valid_runs, 'total_runs': len(valid_runs), 'metrics_count': len(_compute_comparison_statistics(valid_runs)), 'timestamp': datetime.now().isoformat(), 'statistics': _compute_comparison_statistics(valid_runs), 'rankings': _compute_rankings(valid_runs)}
     comparisons[comp_id] = comparison
     _log_activity('created', 'comparison', comp_id, {'run_count': len(valid_runs)})
     return comparison
@@ -370,11 +375,11 @@ def get_stats():
     total_frames_processed = sum(d.get('frames', 0) for d in datasets.values() if d['status'] == 'processed')
     avg_run_duration = np.mean([r['duration'] for r in runs.values() if r['status'] == 'completed' and r['duration'] > 0]) if completed_runs > 0 else 0
     success_rate = (completed_runs / total_runs * 100) if total_runs > 0 else 0
-    return {'datasets': {'total': total_datasets, 'processed': processed_datasets, 'uploading': len([d for d in datasets.values() if d['status'] == 'uploaded']), 'processing': len([d for d in datasets.values() if d['status'] == 'processing']), 'failed': len([d for d in datasets.values() if d['status'] == 'failed'])}, 'algorithms': {'total': total_algorithms, 'custom': len([a for a in algorithms.values() if a['type'] == 'custom']), 'builtin': len([a for a in algorithms.values() if a['type'] == 'builtin'])}, 'runs': {'total': total_runs, 'completed': completed_runs, 'failed': failed_runs, 'running': running_runs, 'queued': queued_runs, 'cancelled': len([r for r in runs.values() if r['status'] == 'cancelled'])}, 'performance': {'total_frames_processed': total_frames_processed, 'avg_run_duration': round(avg_run_duration, 2), 'success_rate': round(success_rate, 2)}, 'timestamp': datetime.now().isoformat()}
+    return {'total_datasets': total_datasets, 'total_algorithms': total_algorithms, 'total_runs': total_runs, 'completed_runs': completed_runs, 'failed_runs': failed_runs, 'running_runs': running_runs, 'queued_runs': queued_runs, 'cancelled_runs': len([r for r in runs.values() if r['status'] == 'cancelled']), 'processed_datasets': processed_datasets, 'uploading_datasets': len([d for d in datasets.values() if d['status'] == 'uploaded']), 'processing_datasets': len([d for d in datasets.values() if d['status'] == 'processing']), 'failed_datasets': len([d for d in datasets.values() if d['status'] == 'failed']), 'custom_algorithms': len([a for a in algorithms.values() if a['type'] == 'custom']), 'builtin_algorithms': len([a for a in algorithms.values() if a['type'] == 'builtin']), 'total_frames_processed': total_frames_processed, 'avg_run_duration': round(avg_run_duration, 2), 'success_rate': round(success_rate, 2), 'timestamp': datetime.now().isoformat()}
 @app.get('/api/activity')
 def get_activity(limit: Optional[int] = Query(50), offset: Optional[int] = Query(0)):
     paginated = activity_log[offset:offset + limit]
-    return {'activity': paginated, 'total': len(activity_log), 'limit': limit, 'offset': offset}
+    return {'log': paginated, 'total': len(activity_log), 'limit': limit, 'offset': offset}
 @app.get('/api/config')
 def get_config():
     return system_config
@@ -421,6 +426,7 @@ async def _execute_run(run_id: str, ds: dict, algo: dict, config_override: dict,
         start_time = time.time()
         runs[run_id]['status'] = 'running'
         runs[run_id]['started'] = datetime.now().isoformat()
+        runs[run_id]['updated'] = datetime.now().isoformat()
         runs[run_id]['progress'] = 0
         _log_activity('started', 'run', run_id)
         await _broadcast_update({'type': 'run_update', 'run_id': run_id, 'status': 'running', 'progress': 0})
@@ -433,9 +439,12 @@ async def _execute_run(run_id: str, ds: dict, algo: dict, config_override: dict,
             runs[run_id]['progress'] = i
             runs[run_id]['current_frame'] = int(total_frames * i / 100)
             await _broadcast_update({'type': 'run_update', 'run_id': run_id, 'progress': i, 'current_frame': runs[run_id]['current_frame']})
-        fake_metrics = {'ate_rmse': round(np.random.uniform(0.1, 2.0), 4), 'ate_mean': round(np.random.uniform(0.05, 1.5), 4), 'ate_std': round(np.random.uniform(0.02, 0.5), 4), 'ate_median': round(np.random.uniform(0.05, 1.5), 4), 'ate_max': round(np.random.uniform(1.0, 5.0), 4), 'rpe_rmse': round(np.random.uniform(0.01, 0.5), 4), 'rpe_mean': round(np.random.uniform(0.005, 0.3), 4), 'rpe_std': round(np.random.uniform(0.002, 0.1), 4), 'rpe_median': round(np.random.uniform(0.005, 0.3), 4), 'robustness_score': round(np.random.uniform(60, 95), 2), 'alignment_score': round(np.random.uniform(70, 98), 2), 'completion_rate': round(np.random.uniform(85, 100), 2), 'loop_closures': int(np.random.uniform(5, 50)), 'lost_frames': int(np.random.uniform(0, 20))}
+        fake_metrics = {'ate_rmse': round(np.random.uniform(0.1, 2.0), 4), 'ate_mean': round(np.random.uniform(0.05, 1.5), 4), 'ate_std': round(np.random.uniform(0.02, 0.5), 4), 'ate_median': round(np.random.uniform(0.05, 1.5), 4), 'ate_max': round(np.random.uniform(1.0, 5.0), 4), 'rpe_rmse': round(np.random.uniform(0.01, 0.5), 4), 'rpe_mean': round(np.random.uniform(0.005, 0.3), 4), 'rpe_std': round(np.random.uniform(0.002, 0.1), 4), 'rpe_median': round(np.random.uniform(0.005, 0.3), 4), 'robustness_score': round(np.random.uniform(60, 95), 2), 'task_alignment_score': round(np.random.uniform(70, 98), 2), 'completion_rate': round(np.random.uniform(85, 100), 2), 'loop_closures': int(np.random.uniform(5, 50)), 'lost_frames': int(np.random.uniform(0, 20))}
+        runs[run_id]['robustness_score'] = fake_metrics['robustness_score']
+        runs[run_id]['task_alignment_score'] = fake_metrics['task_alignment_score']
         runs[run_id]['status'] = 'completed'
         runs[run_id]['completed'] = datetime.now().isoformat()
+        runs[run_id]['updated'] = datetime.now().isoformat()
         runs[run_id]['progress'] = 100
         runs[run_id]['current_frame'] = total_frames
         runs[run_id]['metrics'] = fake_metrics
@@ -449,6 +458,7 @@ async def _execute_run(run_id: str, ds: dict, algo: dict, config_override: dict,
     except Exception as e:
         runs[run_id]['status'] = 'failed'
         runs[run_id]['completed'] = datetime.now().isoformat()
+        runs[run_id]['updated'] = datetime.now().isoformat()
         runs[run_id]['error'] = str(e)
         runs[run_id]['duration'] = round(time.time() - start_time, 2)
         _log_activity('failed', 'run', run_id, {'error': str(e)})
