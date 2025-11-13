@@ -3,22 +3,22 @@ import argparse
 import numpy as np
 from pathlib import Path
 import openslam_config as cfg
-from core import dataset_loader, trajectory, metrics, visualization
+from core import dataset_loader, trajectory, metrics, visualization, motion_analysis, scene_analysis, export, format_converter
 def format_number(value, decimals=None):
     if decimals is None:
         decimals = cfg.PRECISION_DECIMALS
     return f'{value:.{decimals}f}'
 def print_header(text):
-    print(f'\n{"="*60}')
+    print(f'\n{"="*70}')
     print(f'{text}')
-    print(f'{"="*60}\n')
+    print(f'{"="*70}\n')
 def print_section(title):
     print(f'\n{title}:')
     print(f'{"-"*len(title)}')
 def print_metric(name, value, unit=''):
     formatted_value = format_number(value) if isinstance(value, (float, np.float64, np.float32)) else str(value)
     print(f'  {name}: {formatted_value} {unit}')
-def preview_dataset(dataset_path, format_type=None, plot=False):
+def preview_dataset(dataset_path, format_type=None, plot=False, detailed=False):
     print_header(f'Dataset Preview: {dataset_path}')
     dataset, error = dataset_loader.load_dataset(dataset_path, format_type)
     if error:
@@ -66,6 +66,40 @@ def preview_dataset(dataset_path, format_type=None, plot=False):
         print_metric('Bounding Box Size', f'[{format_number(bbox_size[0])}, {format_number(bbox_size[1])}, {format_number(bbox_size[2])}]', 'm')
         print_metric('Min Position', f'[{format_number(bbox_min[0])}, {format_number(bbox_min[1])}, {format_number(bbox_min[2])}]', 'm')
         print_metric('Max Position', f'[{format_number(bbox_max[0])}, {format_number(bbox_max[1])}, {format_number(bbox_max[2])}]', 'm')
+    if detailed:
+        if timestamps is not None:
+            print_section('Motion Analysis')
+            motion_result, error = motion_analysis.analyze_motion_patterns(poses, timestamps)
+            if not error:
+                print_metric('Dominant Motion', motion_result['dominant'])
+                print('  Motion Distribution:')
+                for category, percentage in motion_result['percentages'].items():
+                    if percentage > 0:
+                        print(f'    {category}: {format_number(percentage, 2)}%')
+            dynamics, error = motion_analysis.analyze_dynamics(poses, timestamps)
+            if not error:
+                print_section('Dynamics')
+                print_metric('Avg Velocity', dynamics['velocity']['mean'], 'm/s')
+                print_metric('Max Velocity', dynamics['velocity']['max'], 'm/s')
+                print_metric('Avg Acceleration', dynamics['acceleration']['mean'], 'm/s^2')
+                print_metric('Max Acceleration', dynamics['acceleration']['max'], 'm/s^2')
+        path_eff, error = motion_analysis.compute_path_efficiency(poses)
+        if not error:
+            print_section('Path Efficiency')
+            print_metric('Total Path Length', path_eff['total_distance'], 'm')
+            print_metric('Straight Line Distance', path_eff['straight_line_distance'], 'm')
+            print_metric('Efficiency', path_eff['efficiency'])
+        scene_comp, error = scene_analysis.estimate_scene_complexity(poses, timestamps)
+        if not error:
+            print_section('Scene Complexity')
+            print_metric('Complexity Level', scene_comp['level'])
+            print_metric('Complexity Score', scene_comp['complexity_score'])
+            print_metric('Direction Changes', scene_comp['direction_changes'])
+            print_metric('Turn Density', scene_comp['turn_density'], 'turns/frame')
+        loops, error = scene_analysis.detect_loops(poses)
+        if not error and loops['count'] > 0:
+            print_section('Loop Closures')
+            print_metric('Detected Loops', loops['count'])
     if plot:
         print_section('Generating Plots')
         output_dir = cfg.PLOT_DIR / 'preview'
@@ -178,6 +212,108 @@ def evaluate_trajectory(estimated_path, ground_truth_path, format_type=None, ali
         result, error = visualization.plot_trajectory_with_errors(est_poses, ate['errors'], error_heatmap_path, ground_truth=gt_poses)
         if not error:
             print(f'  Trajectory Error Heatmap: {result}')
+        print_section('Exporting Results')
+        json_path = output_dir / 'results.json'
+        result, error = export.export_to_json(eval_results, json_path)
+        if not error:
+            print(f'  JSON: {result}')
+        csv_path = output_dir / 'results.csv'
+        result, error = export.export_to_csv(eval_results, csv_path)
+        if not error:
+            print(f'  CSV: {result}')
+        latex_path = output_dir / 'results.tex'
+        result, error = export.export_to_latex(eval_results, latex_path)
+        if not error:
+            print(f'  LaTeX: {result}')
+    print()
+    return 0
+def convert_format_command(input_path, output_path, input_format, output_format):
+    print_header(f'Converting {input_format} to {output_format}')
+    result, error = format_converter.convert_format(input_path, output_path, input_format, output_format)
+    if error:
+        print(f'Error converting: {error}')
+        return 1
+    print(f'Successfully converted to: {result}')
+    return 0
+def compare_trajectories(ground_truth_path, estimated_paths, format_type=None, output_dir=None):
+    print_header('Multi-Trajectory Comparison')
+    print_section('Loading Ground Truth')
+    gt_dataset, error = dataset_loader.load_dataset(ground_truth_path, format_type)
+    if error:
+        print(f'Error loading ground truth: {error}')
+        return 1
+    if 'sequences' in gt_dataset:
+        gt_poses = gt_dataset['sequences'][0]['poses']
+        gt_timestamps = gt_dataset['sequences'][0]['timestamps']
+    else:
+        gt_poses = gt_dataset['poses']
+        gt_timestamps = gt_dataset['timestamps']
+    print_metric('Ground Truth Frames', len(gt_poses))
+    print_section('Evaluating Trajectories')
+    all_results = []
+    for i, est_path in enumerate(estimated_paths):
+        est_path_obj = Path(est_path)
+        name = est_path_obj.stem
+        print(f'\n  [{i+1}/{len(estimated_paths)}] {name}')
+        est_dataset, error = dataset_loader.load_dataset(est_path, format_type)
+        if error:
+            print(f'    Error: {error}')
+            continue
+        if 'sequences' in est_dataset:
+            est_poses = est_dataset['sequences'][0]['poses']
+            est_timestamps = est_dataset['sequences'][0]['timestamps']
+        else:
+            est_poses = est_dataset['poses']
+            est_timestamps = est_dataset['timestamps']
+        if est_timestamps is not None and gt_timestamps is not None:
+            sync_result, error = trajectory.synchronize_trajectories(est_timestamps, est_poses, gt_timestamps, gt_poses)
+            if error:
+                print(f'    Sync error: {error}')
+                continue
+            est_poses = sync_result['traj1']['poses']
+            synced_gt_poses = sync_result['traj2']['poses']
+        else:
+            synced_gt_poses = gt_poses
+        align_result, error = trajectory.align_trajectories(est_poses, synced_gt_poses, method=cfg.DEFAULT_ALIGNMENT)
+        if error:
+            print(f'    Alignment error: {error}')
+            continue
+        est_poses = align_result['aligned_poses']
+        eval_results, error = metrics.evaluate_trajectory(est_poses, synced_gt_poses)
+        if error:
+            print(f'    Evaluation error: {error}')
+            continue
+        eval_results['name'] = name
+        all_results.append(eval_results)
+        print(f'    ATE RMSE: {format_number(eval_results["ate"]["rmse"])} m')
+        if eval_results['robustness'] is not None:
+            print(f'    Robustness: {format_number(eval_results["robustness"]["score"])}')
+    if len(all_results) == 0:
+        print('No successful evaluations')
+        return 1
+    print_section('Comparison Summary')
+    best_ate = min(r['ate']['rmse'] for r in all_results)
+    best_result = next(r for r in all_results if r['ate']['rmse'] == best_ate)
+    print_metric('Best ATE RMSE', best_ate, 'm')
+    print_metric('Best Algorithm', best_result['name'])
+    if output_dir:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print_section('Generating Comparison Plots')
+        comparison_data = [{'name': r['name'], 'value': r['ate']['rmse']} for r in all_results]
+        comparison_path = output_dir / 'ate_comparison.png'
+        result, error = visualization.plot_comparison(comparison_data, 'ATE RMSE [m]', comparison_path)
+        if not error:
+            print(f'  ATE Comparison: {result}')
+        print_section('Exporting Comparison')
+        latex_path = output_dir / 'comparison.tex'
+        result, error = export.export_comparison_table(all_results, latex_path)
+        if not error:
+            print(f'  LaTeX Table: {result}')
+        json_path = output_dir / 'comparison.json'
+        result, error = export.export_to_json(all_results, json_path)
+        if not error:
+            print(f'  JSON: {result}')
     print()
     return 0
 def main():
@@ -187,17 +323,32 @@ def main():
     preview_parser.add_argument('dataset', type=str, help='Path to dataset')
     preview_parser.add_argument('--format', type=str, default=None, help='Dataset format (kitti, tum, euroc)')
     preview_parser.add_argument('--plot', action='store_true', help='Generate trajectory plots')
+    preview_parser.add_argument('--detailed', action='store_true', help='Show detailed analysis')
     eval_parser = subparsers.add_parser('evaluate', help='Evaluate trajectory against ground truth')
     eval_parser.add_argument('estimated', type=str, help='Path to estimated trajectory')
     eval_parser.add_argument('ground_truth', type=str, help='Path to ground truth trajectory')
     eval_parser.add_argument('--format', type=str, default=None, help='Dataset format (kitti, tum, euroc)')
     eval_parser.add_argument('--no-align', action='store_true', help='Skip trajectory alignment')
     eval_parser.add_argument('--output', type=str, default=None, help='Output directory for results')
+    convert_parser = subparsers.add_parser('convert', help='Convert between dataset formats')
+    convert_parser.add_argument('input', type=str, help='Input file path')
+    convert_parser.add_argument('output', type=str, help='Output file path')
+    convert_parser.add_argument('--input-format', type=str, required=True, help='Input format (kitti, tum, euroc)')
+    convert_parser.add_argument('--output-format', type=str, required=True, help='Output format (kitti, tum, euroc)')
+    compare_parser = subparsers.add_parser('compare', help='Compare multiple trajectories')
+    compare_parser.add_argument('ground_truth', type=str, help='Path to ground truth')
+    compare_parser.add_argument('trajectories', nargs='+', help='Paths to estimated trajectories')
+    compare_parser.add_argument('--format', type=str, default=None, help='Dataset format (kitti, tum, euroc)')
+    compare_parser.add_argument('--output', type=str, default=None, help='Output directory for results')
     args = parser.parse_args()
     if args.command == 'preview':
-        return preview_dataset(args.dataset, format_type=args.format, plot=args.plot)
+        return preview_dataset(args.dataset, format_type=args.format, plot=args.plot, detailed=args.detailed)
     elif args.command == 'evaluate':
         return evaluate_trajectory(args.estimated, args.ground_truth, format_type=args.format, align=not args.no_align, output_dir=args.output)
+    elif args.command == 'convert':
+        return convert_format_command(args.input, args.output, args.input_format, args.output_format)
+    elif args.command == 'compare':
+        return compare_trajectories(args.ground_truth, args.trajectories, format_type=args.format, output_dir=args.output)
     else:
         parser.print_help()
         return 1
