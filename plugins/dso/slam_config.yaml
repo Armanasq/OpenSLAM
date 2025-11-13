@@ -1,0 +1,25 @@
+name: "DSO"
+version: "1.0"
+description: "DSO - Direct Sparse Odometry"
+author: "Jakob Engel, Vladlen Koltun, Daniel Cremers"
+entry_point: "dso_wrapper.py"
+functions:
+  initialize: "dso_init"
+  process_frame: "dso_track"
+  get_current_pose: "dso_get_pose"
+  get_full_trajectory: "dso_get_trajectory"
+  shutdown: "dso_shutdown"
+input_types:
+  - image
+output_format: "trajectory"
+data_adapters:
+  kitti: "DSOKITTIAdapter"
+  tum: "DSOTUMAdapter"
+  euroc: "DSOEuRoCAdapter"
+  custom: "DSOGenericAdapter"
+default_params:
+  pyramid_levels: 5
+  points_per_frame: 2000
+  min_opt_iterations: 4
+  max_opt_iterations: 6
+  photometric_calibration: "response"

@@ -1,0 +1,27 @@
+name: "RTAB-Map"
+version: "0.21.0"
+description: "RTAB-Map - Real-Time Appearance-Based Mapping"
+author: "Mathieu Labbé, François Michaud"
+entry_point: "rtabmap_wrapper.py"
+functions:
+  initialize: "rtabmap_init"
+  process_frame: "rtabmap_process"
+  get_current_pose: "rtabmap_get_pose"
+  get_full_trajectory: "rtabmap_get_trajectory"
+  shutdown: "rtabmap_shutdown"
+input_types:
+  - rgbd
+  - stereo
+  - lidar
+output_format: "trajectory"
+data_adapters:
+  kitti: "RTABMapKITTIAdapter"
+  tum: "RTABMapTUMAdapter"
+  euroc: "RTABMapEuRoCAdapter"
+  custom: "RTABMapGenericAdapter"
+default_params:
+  mem_incremental_memory: true
+  mem_init_wm_to_working_memory: false
+  kp_detector_strategy: 6
+  vis_max_features: 1000
+  odom_strategy: 0

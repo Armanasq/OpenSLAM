@@ -1,0 +1,19 @@
+datasets:
+  - name: circular_trajectory
+    path: data/test/ground_truth_kitti.txt
+    format: kitti
+algorithms:
+  - name: ORB-SLAM3
+    plugin: orbslam3
+  - name: VINS-Mono
+    plugin: vins_mono
+  - name: DSO
+    plugin: dso
+  - name: RTAB-Map
+    plugin: rtabmap
+output:
+  directory: results/slam_comparison
+  formats:
+    - json
+    - csv
+    - latex
