@@ -52,9 +52,6 @@ class PluginManager:
         elif is_cpp and not is_workflow:
             if 'cpp_wrapper' not in config:
                 return None, 'missing_required_field_cpp_wrapper'
-        elif is_workflow:
-            if 'docker' not in config and 'build' not in config:
-                return None, 'workflow_plugin_missing_docker_config'
         if config.get('input_types'):
             for input_type in config['input_types']:
                 if input_type not in pcfg.SUPPORTED_INPUT_TYPES:

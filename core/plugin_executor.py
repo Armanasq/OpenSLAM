@@ -141,7 +141,18 @@ class PluginExecutor:
         trajectory = result.get('trajectory')
         if trajectory is None:
             return None, 'no_trajectory_in_workflow_result'
-        result_dict = {'trajectory': trajectory, 'timestamps': None, 'processing_times': [], 'frames_processed': len(trajectory), 'total_frames': len(trajectory)}
+        if isinstance(trajectory, dict):
+            if 'poses' in trajectory:
+                poses = trajectory['poses']
+                timestamps = trajectory.get('timestamps')
+            else:
+                return None, 'trajectory_dict_missing_poses'
+        else:
+            poses = trajectory
+            timestamps = None
+        if not isinstance(poses, np.ndarray):
+            poses = np.array(poses)
+        result_dict = {'trajectory': poses, 'timestamps': timestamps, 'processing_times': [], 'frames_processed': len(poses), 'total_frames': len(poses)}
         return result_dict, None
     def run_on_dataset(self, dataset_path, dataset_format=None):
         load_result, error = self.load()

@@ -59,7 +59,9 @@ class ConnectorEngine:
 
     def _execute_transform(self, config, input_data, params):
         method = config.get('method')
-        if method == 'quaternion_to_matrix':
+        if method == 'identity':
+            return input_data, None
+        elif method == 'quaternion_to_matrix':
             return self._quaternion_to_matrix(input_data), None
         elif method == 'matrix_to_quaternion':
             return self._matrix_to_quaternion(input_data), None
@@ -256,6 +258,9 @@ class ConnectorEngine:
         return merged
 
     def substitute_variables(self, text, variables):
+        if text in [f'${{{k}}}' for k in variables.keys()]:
+            var_name = text[2:-1]
+            return variables.get(var_name, text)
         result = text
         for key, value in variables.items():
             result = result.replace('${' + key + '}', str(value))

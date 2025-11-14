@@ -1,0 +1,10 @@
+name: identity
+type: transform
+method: identity
+description: pass through unchanged
+
+input:
+  type: any
+
+output:
+  type: any

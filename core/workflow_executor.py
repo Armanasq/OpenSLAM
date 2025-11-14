@@ -81,6 +81,8 @@ class WorkflowExecutor:
 
     def _execute_docker_stage(self, stage, plugin_config, previous_results):
         docker_config = stage.get('docker', {})
+        if not docker_config:
+            return {}, None
 
         image_name, error = self.docker_orchestrator.get_image(plugin_config.get('name'), plugin_config)
         if error:
