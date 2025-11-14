@@ -1,0 +1,21 @@
+name: tum_trajectory
+type: parser
+format: tum
+description: parse TUM trajectory format
+
+input:
+  type: file
+  format: text
+
+output:
+  type: trajectory
+  format: numpy_array
+
+parser:
+  format: "timestamp tx ty tz qx qy qz qw"
+  regex: "^(\\S+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)$"
+  groups:
+    timestamp: 1
+    position: [2, 3, 4]
+    quaternion: [5, 6, 7, 8]
+  transform: quaternion_to_matrix

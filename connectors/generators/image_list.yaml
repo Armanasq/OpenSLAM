@@ -1,0 +1,17 @@
+name: image_list
+type: generator
+generates: image_list
+description: generate list of image paths from directory
+
+input:
+  type: directory
+
+output:
+  type: file
+  format: text
+
+config:
+  extensions: ['.png', '.jpg', '.jpeg', '.bmp']
+  recursive: false
+  sort: true
+  output_format: "one path per line"

@@ -5,6 +5,7 @@ import plugin_config as pcfg
 from core.plugin_manager import PluginManager
 from core import dataset_loader, metrics
 from core.cpp_slam_wrapper import CPPSLAMWrapper
+from core.workflow_executor import WorkflowExecutor
 class PluginExecutor:
     def __init__(self, plugin_name):
         self.plugin_name = plugin_name
@@ -16,13 +17,18 @@ class PluginExecutor:
         self.processing_times = []
         self.is_cpp_plugin = False
         self.cpp_wrapper = None
+        self.is_workflow_plugin = False
+        self.workflow_executor = None
     def load(self):
         plugin, error = self.plugin_manager.load_plugin(self.plugin_name)
         if error:
             return None, error
         self.plugin = plugin
         plugin_config = plugin['config']
-        if plugin_config.get('language') == 'cpp':
+        if 'workflow' in plugin_config or 'interface' in plugin_config:
+            self.is_workflow_plugin = True
+            self.workflow_executor = WorkflowExecutor()
+        elif plugin_config.get('language') == 'cpp':
             self.is_cpp_plugin = True
             self.cpp_wrapper = CPPSLAMWrapper(plugin_config)
         return plugin, None
@@ -126,10 +132,23 @@ class PluginExecutor:
         if isinstance(result, tuple):
             return result
         return True, None
+    def _run_workflow(self, dataset_path, dataset_format):
+        plugin_config = self.plugin['config']
+        output_dir = Path(f'results/{self.plugin_name}')
+        result, error = self.workflow_executor.execute_workflow(plugin_config, dataset_path, str(output_dir))
+        if error:
+            return None, error
+        trajectory = result.get('trajectory')
+        if trajectory is None:
+            return None, 'no_trajectory_in_workflow_result'
+        result_dict = {'trajectory': trajectory, 'timestamps': None, 'processing_times': [], 'frames_processed': len(trajectory), 'total_frames': len(trajectory)}
+        return result_dict, None
     def run_on_dataset(self, dataset_path, dataset_format=None):
         load_result, error = self.load()
         if error:
             return None, error
+        if self.is_workflow_plugin:
+            return self._run_workflow(dataset_path, dataset_format)
         dataset, error = dataset_loader.load_dataset(dataset_path, format_type=dataset_format)
         if error:
             return None, error
