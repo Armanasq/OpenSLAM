@@ -39,8 +39,9 @@ class PluginManager:
         for field in required_fields:
             if field not in config:
                 return None, f'missing_required_field_{field}'
+        is_workflow = 'workflow' in config or 'interface' in config
         is_cpp = config.get('language') == 'cpp'
-        if not is_cpp:
+        if not is_workflow and not is_cpp:
             if 'entry_point' not in config:
                 return None, 'missing_required_field_entry_point'
             if 'functions' not in config:
@@ -48,9 +49,12 @@ class PluginManager:
             for required_func in pcfg.REQUIRED_FUNCTIONS:
                 if required_func not in config['functions']:
                     return None, f'missing_required_function_{required_func}'
-        else:
+        elif is_cpp and not is_workflow:
             if 'cpp_wrapper' not in config:
                 return None, 'missing_required_field_cpp_wrapper'
+        elif is_workflow:
+            if 'docker' not in config and 'build' not in config:
+                return None, 'workflow_plugin_missing_docker_config'
         if config.get('input_types'):
             for input_type in config['input_types']:
                 if input_type not in pcfg.SUPPORTED_INPUT_TYPES:
@@ -69,7 +73,9 @@ class PluginManager:
         plugin_info = discovered[plugin_name]
         plugin_path = plugin_info['path']
         config = plugin_info['config']
-        if config.get('language') == 'cpp':
+        is_workflow = 'workflow' in config or 'interface' in config
+        is_cpp = config.get('language') == 'cpp'
+        if is_workflow or is_cpp:
             plugin = {'name': plugin_name, 'config': config, 'module': None, 'path': plugin_path}
             self.plugins[plugin_name] = plugin
             return plugin, None
