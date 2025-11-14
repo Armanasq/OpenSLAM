@@ -1,6 +1,6 @@
 const CONFIG = {
-    API_BASE_URL: '/api',
-    WS_URL: '/ws',
+    API_BASE_URL: 'http://localhost:5000/api',
+    WS_URL: 'http://localhost:5000',
     THEME: {PRIMARY: '#2563eb', SECONDARY: '#64748b', SUCCESS: '#10b981', WARNING: '#f59e0b', ERROR: '#ef4444', INFO: '#3b82f6'},
     ANIMATION: {DURATION_INSTANT: 100, DURATION_FAST: 200, DURATION_NORMAL: 300, DURATION_SLOW: 500, DURATION_SLOWER: 800},
     CHART: {COLORS: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#6366f1'], HEIGHT: 400, ANIMATION_DURATION: 750},

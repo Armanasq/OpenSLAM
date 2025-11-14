@@ -120,7 +120,7 @@ const API = {
     datasets: {
         list() {return API.get('/datasets');},
         get(id) {return API.get(`/datasets/${id}`);},
-        upload(file, onProgress) {return API.upload('/datasets/upload', file, onProgress);},
+        upload(file, onProgress) {return API.upload('/datasets', file, onProgress);},
         delete(id) {return API.delete(`/datasets/${id}`);}
     },
 
@@ -132,10 +132,10 @@ const API = {
     },
 
     results: {
-        list(params) {return API.get('/results', params);},
-        get(id) {return API.get(`/results/${id}`);},
-        compare(ids) {return API.post('/results/compare', {ids});},
-        export(id, format) {return API.get(`/results/${id}/export/${format}`);}
+        list(params) {return API.get('/evaluations', params);},
+        get(id) {return API.get(`/evaluations/${id}`);},
+        compare(ids) {return API.post('/compare', {ids});},
+        export(id, format) {return API.get(`/evaluations/${id}/export/${format}`);}
     },
 
     batch: {
@@ -171,79 +171,71 @@ API.addResponseInterceptor(result => {
 class WebSocketManager {
     constructor(url) {
         this.url = url;
-        this.ws = null;
-        this.listeners = {};
-        this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 5;
-        this.reconnectDelay = 1000;
+        this.socket = null;
         this.isConnected = false;
     }
 
     connect() {
-        this.ws = new WebSocket(this.url);
-
-        this.ws.onopen = () => {
-            this.isConnected = true;
-            this.reconnectAttempts = 0;
-            this.emit('connect');
-        };
-
-        this.ws.onmessage = event => {
+        return new Promise((resolve, reject) => {
             try {
-                const data = JSON.parse(event.data);
-                this.emit(data.type, data.payload);
+                this.socket = io(this.url, {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000
+                });
+
+                this.socket.on('connect', () => {
+                    this.isConnected = true;
+                    console.log('Socket.IO connected');
+                    resolve();
+                });
+
+                this.socket.on('disconnect', () => {
+                    this.isConnected = false;
+                    console.log('Socket.IO disconnected');
+                });
+
+                this.socket.on('connect_error', (error) => {
+                    console.error('Socket.IO connection error:', error);
+                    reject(error);
+                });
+
+                this.socket.on('connected', (data) => {
+                    console.log('Server message:', data.message);
+                });
+
             } catch (error) {
-                console.error('WebSocket message parse error:', error);
+                reject(error);
             }
-        };
-
-        this.ws.onerror = error => {
-            console.error('WebSocket error:', error);
-            this.emit('error', error);
-        };
-
-        this.ws.onclose = () => {
-            this.isConnected = false;
-            this.emit('disconnect');
-            this.reconnect();
-        };
-    }
-
-    reconnect() {
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.reconnectAttempts++;
-            const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-            setTimeout(() => this.connect(), delay);
-        }
+        });
     }
 
     on(event, callback) {
-        if (!this.listeners[event]) this.listeners[event] = [];
-        this.listeners[event].push(callback);
+        if (this.socket) {
+            this.socket.on(event, callback);
+        }
     }
 
     off(event, callback) {
-        if (!this.listeners[event]) return;
-        this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+        if (this.socket) {
+            this.socket.off(event, callback);
+        }
     }
 
     emit(event, data) {
-        if (!this.listeners[event]) return;
-        this.listeners[event].forEach(callback => callback(data));
-    }
-
-    send(type, payload) {
-        if (this.isConnected) {
-            this.ws.send(JSON.stringify({type, payload}));
+        if (this.socket && this.isConnected) {
+            this.socket.emit(event, data);
         }
     }
 
     disconnect() {
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
+        if (this.socket) {
+            this.socket.disconnect();
+            this.socket = null;
+            this.isConnected = false;
         }
     }
 }
 
-const WS = new WebSocketManager(window.location.protocol === 'https:' ? 'wss://' + window.location.host + CONFIG.WS_URL : 'ws://' + window.location.host + CONFIG.WS_URL);
+const WS = new WebSocketManager(CONFIG.WS_URL);
