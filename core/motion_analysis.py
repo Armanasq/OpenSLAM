@@ -1,5 +1,5 @@
 import numpy as np
-import openslam_config as cfg
+from config import openslam_config as cfg
 from core.trajectory import extract_positions, extract_rotations, compute_velocities, compute_angular_velocities
 def classify_motion(velocity, angular_velocity):
     if velocity < cfg.VELOCITY_THRESHOLD and angular_velocity < cfg.ANGULAR_VELOCITY_THRESHOLD:

@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 import csv
-import openslam_config as cfg
+from config import openslam_config as cfg
 def detect_format(path):
     path = Path(path)
     if not path.exists():

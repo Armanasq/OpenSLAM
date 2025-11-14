@@ -1,5 +1,5 @@
 import numpy as np
-import openslam_config as cfg
+from config import openslam_config as cfg
 def extract_positions(poses):
     if poses.shape[1:] == (4, 4):
         return poses[:, :3, 3]

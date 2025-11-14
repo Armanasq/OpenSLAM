@@ -2,7 +2,7 @@ import json
 import csv
 from pathlib import Path
 import numpy as np
-import openslam_config as cfg
+from config import openslam_config as cfg
 import h5py
 def export_to_json(results, output_path):
     output_path = Path(output_path)

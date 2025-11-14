@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import shutil
-import docker_config as dcfg
+from config import docker_config as dcfg
 
 class DockerOrchestrator:
     def __init__(self):

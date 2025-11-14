@@ -3,7 +3,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pathlib import Path
-import openslam_config as cfg
+from config import openslam_config as cfg
 from core.trajectory import extract_positions
 def setup_plot_style():
     plt.style.use(cfg.PLOT_STYLE)
