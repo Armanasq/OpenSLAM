@@ -1,0 +1,18 @@
+name: kitti_trajectory
+type: parser
+format: kitti
+description: parse KITTI trajectory format
+
+input:
+  type: file
+  format: text
+
+output:
+  type: trajectory
+  format: numpy_array
+
+parser:
+  format: "12 space-separated values forming 3x4 pose matrix"
+  columns: 12
+  reshape: [3, 4]
+  expand_to_4x4: true

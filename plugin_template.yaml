@@ -1,0 +1,78 @@
+name: "MySLAM"
+version: "1.0.0"
+description: "My custom SLAM algorithm implementation"
+author: "Your Name"
+entry_point: "slam_wrapper.py"
+functions:
+  initialize:
+    name: "slam_init"
+    description: "Initialize SLAM system with configuration"
+    parameters:
+      - config_file
+      - vocabulary_path
+    returns: "state_object"
+  process_frame:
+    name: "slam_track"
+    description: "Process single frame and track camera pose"
+    parameters:
+      - state
+      - frame_data
+    returns: "tracking_result"
+  get_current_pose:
+    name: "get_camera_pose"
+    description: "Get current camera pose as 4x4 matrix"
+    parameters:
+      - state
+    returns: "pose_matrix"
+  get_full_trajectory:
+    name: "get_trajectory"
+    description: "Get full trajectory as Nx4x4 array"
+    parameters:
+      - state
+    returns: "trajectory_array"
+  shutdown:
+    name: "slam_shutdown"
+    description: "Cleanup and release resources"
+    parameters:
+      - state
+    returns: "success"
+input_types:
+  - image
+  - stereo
+  - imu
+output_format: "trajectory"
+data_adapters:
+  kitti: "KITTIDataAdapter"
+  tum: "TUMDataAdapter"
+  euroc: "EuRoCDataAdapter"
+  custom: "GenericDataAdapter"
+data_routing:
+  image_path: "frame_data.image"
+  timestamp: "frame_data.timestamp"
+  pose_matrix: "state.current_pose"
+  trajectory: "state.all_poses"
+default_params:
+  use_viewer: false
+  vocab_path: "vocabulary/ORBvoc.txt"
+  config_path: "config/kitti.yaml"
+  num_features: 2000
+  scale_factor: 1.2
+  num_levels: 8
+dependencies:
+  python:
+    - numpy
+    - opencv-python
+    - scipy
+  system:
+    - cmake
+    - gcc
+  files:
+    - vocabulary/ORBvoc.txt
+    - config/kitti.yaml
+environment:
+  PYTHONPATH: "${PLUGIN_DIR}/python"
+  LD_LIBRARY_PATH: "${PLUGIN_DIR}/lib"
+execution:
+  timeout: 300
+  max_memory: "8GB"
+  parallel: false

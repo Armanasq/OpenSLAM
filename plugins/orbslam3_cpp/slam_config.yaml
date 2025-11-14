@@ -1,0 +1,47 @@
+name: "ORB-SLAM3-CPP"
+version: "0.3.0"
+description: "ORB-SLAM3 C++ integration using subprocess wrapper"
+author: "OpenSLAM"
+language: cpp
+
+input_types:
+  - image
+  - stereo
+  - rgbd
+  - imu
+
+output_format: trajectory
+
+cpp_wrapper:
+  type: subprocess
+  executable: "plugins/orbslam3_cpp/mock_orbslam3"
+  args:
+    - "${vocab_path}"
+    - "${settings_path}"
+    - "${IMAGE_DIR}"
+    - "${TRAJECTORY_FILE}"
+
+  trajectory_extraction: file_based
+  trajectory_format: tum
+
+  environment:
+    LD_LIBRARY_PATH: "/usr/local/lib:${LD_LIBRARY_PATH}"
+
+execution:
+  timeout: 300
+  max_memory_mb: 4096
+
+default_params:
+  vocab_path: "/path/to/ORBvoc.txt"
+  settings_path: "/path/to/KITTI00-02.yaml"
+  num_features: 2000
+  scale_factor: 1.2
+  num_levels: 8
+
+dataset_specific_params:
+  kitti:
+    settings_path: "${PLUGIN_DIR}/config/KITTI.yaml"
+  tum:
+    settings_path: "${PLUGIN_DIR}/config/TUM.yaml"
+  euroc:
+    settings_path: "${PLUGIN_DIR}/config/EuRoC.yaml"

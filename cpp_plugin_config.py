@@ -1,0 +1,13 @@
+LANGUAGE_SUPPORT = ['python', 'cpp', 'ros']
+CPP_WRAPPER_TYPES = ['pybind11', 'ctypes', 'cython', 'subprocess']
+IMAGE_FORMATS = ['png', 'jpg', 'bmp', 'pgm', 'tiff']
+TRAJECTORY_EXTRACTION_METHODS = ['file_based', 'api_based', 'ros_topic']
+BUILD_SYSTEMS = ['cmake', 'catkin', 'colcon', 'make', 'none']
+DEPENDENCY_MANAGERS = ['apt', 'pip', 'conda', 'rosdep', 'vcpkg']
+OPENCV_SUPPORTED = True
+EIGEN_SUPPORTED = True
+SOPHUS_SUPPORTED = True
+G2O_SUPPORTED = True
+CERES_SUPPORTED = True
+IMAGE_LOADING_BACKENDS = ['opencv', 'pil', 'imageio', 'cv_bridge']
+POSE_FORMATS = ['se3_matrix', 'sophus_se3', 'quaternion_translation', 'euler_translation', 'axis_angle']

@@ -1,282 +1,52 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Navigation from './components/Navigation';
-import LandingPage from './components/LandingPage';
-import DatasetManager from './components/DatasetManager';
-import DatasetPreview from './components/DatasetPreview';
-import AlgorithmDevelopment from './components/AlgorithmDevelopment';
-import Visualization from './components/Visualization';
-import TutorialInterface from './components/TutorialInterface';
-import PerformanceAnalysis from './components/PerformanceAnalysis';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-
-const App = () => {
-  const [currentDataset, setCurrentDataset] = useState(null);
-  const [algorithms, setAlgorithms] = useState([]);
-  const [executionResults, setExecutionResults] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  useEffect(() => {
-    initializeWebSocket();
-    loadInitialData();
-    
-    // Load theme preference
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-      setIsDarkMode(true);
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
-
-  const initializeWebSocket = async () => {
-    const Config = (await import('./config/loader')).default;
-    const config = new Config();
-    await config.load();
-    const wsUrl = config.get('urls.websocket_url');
-    const ws = new WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-      setIsConnected(true);
-      addNotification('Connected to SLAM backend', 'success');
-    };
-    
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      handleWebSocketMessage(data);
-    };
-    
-    ws.onclose = () => {
-      setIsConnected(false);
-      addNotification('Disconnected from backend', 'error');
-    };
-    
-    ws.onerror = (error) => {
-      addNotification('WebSocket error occurred', 'error');
-    };
-  };
-
-  const handleWebSocketMessage = (data) => {
-    switch (data.type) {
-      case 'algorithm_result':
-        setExecutionResults(prev => [...prev, data.payload]);
-        addNotification(`Algorithm ${data.payload.algorithm_name} completed`, 'success');
-        break;
-      case 'dataset_loaded':
-        setCurrentDataset(data.payload);
-        addNotification(`Dataset ${data.payload.name} loaded`, 'info');
-        break;
-      case 'error':
-        addNotification(data.message, 'error');
-        break;
-      default:
-        console.log('Unknown message type:', data.type);
-    }
-  };
-
-  const loadInitialData = async () => {
-    const Config = (await import('./config/loader')).default;
-    const config = new Config();
-    await config.load();
-    const apiBaseUrl = config.get('urls.api_base_url');
-    try {
-      const response = await fetch(`${apiBaseUrl}/datasets`);
-      if (response.ok) {
-        const datasets = await response.json();
-        if (datasets.length > 0) {
-          setCurrentDataset(datasets[0]);
-        }
-      }
-    } catch (error) {
-      addNotification('Failed to load initial data', 'error');
-    }
-  };
-
-  const addNotification = (message, type = 'info') => {
-    const notification = {
-      id: Date.now(),
-      message,
-      type,
-      timestamp: new Date()
-    };
-    setNotifications(prev => [...prev, notification]);
-    
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== notification.id));
-    }, 5000);
-  };
-
-  const handleDatasetSelect = (dataset) => {
-    setCurrentDataset(dataset);
-    addNotification(`Selected dataset: ${dataset.name}`, 'info');
-  };
-
-  const handleAlgorithmCreate = (algorithm) => {
-    setAlgorithms(prev => [...prev, algorithm]);
-    addNotification(`Algorithm ${algorithm.name} created`, 'success');
-  };
-
-  const handleAlgorithmExecute = async (algorithmId, datasetId, parameters) => {
-    const Config = (await import('./config/loader')).default;
-    const config = new Config();
-    await config.load();
-    const apiBaseUrl = config.get('urls.api_base_url');
-    try {
-      const response = await fetch(`${apiBaseUrl}/execute-algorithm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          algorithm_id: algorithmId,
-          dataset_id: datasetId,
-          parameters
-        })
-      });
-      
-      if (response.ok) {
-        addNotification('Algorithm execution started', 'info');
-      } else {
-        addNotification('Failed to start algorithm execution', 'error');
-      }
-    } catch (error) {
-      addNotification('Error executing algorithm', 'error');
-    }
-  };
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
-
-  return (
-    <Router>
-      <div className={`app ${isDarkMode ? 'dark' : ''}`}>
-        <Navigation 
-          isConnected={isConnected}
-          currentDataset={currentDataset}
-          onDatasetSelect={handleDatasetSelect}
-          isDarkMode={isDarkMode}
-          onToggleTheme={toggleTheme}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
-        
-        <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          <Routes>
-            <Route 
-              path="/" 
-              element={<LandingPage isDarkMode={isDarkMode} />} 
-            />
-            <Route 
-              path="/datasets" 
-              element={
-                <DatasetManager 
-                  currentDataset={currentDataset}
-                  onDatasetSelect={handleDatasetSelect}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/dataset-preview" 
-              element={
-                <DatasetPreview 
-                  dataset={currentDataset}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/algorithms" 
-              element={
-                <AlgorithmDevelopment 
-                  algorithms={algorithms}
-                  currentDataset={currentDataset}
-                  onAlgorithmCreate={handleAlgorithmCreate}
-                  onAlgorithmExecute={handleAlgorithmExecute}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/visualization" 
-              element={
-                <Visualization 
-                  executionResults={executionResults}
-                  currentDataset={currentDataset}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/tutorials" 
-              element={
-                <TutorialInterface 
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-            <Route 
-              path="/analysis" 
-              element={
-                <PerformanceAnalysis 
-                  executionResults={executionResults}
-                  onNotification={addNotification}
-                  isDarkMode={isDarkMode}
-                />
-              } 
-            />
-          </Routes>
-        </main>
-        
-        <NotificationContainer notifications={notifications} isDarkMode={isDarkMode} />
-      </div>
-    </Router>
-  );
-};
-
-const NotificationContainer = ({ notifications, isDarkMode }) => {
-  if (notifications.length === 0) return null;
-
-  return (
-    <div className="notification-container">
-      {notifications.map(notification => (
-        <div 
-          key={notification.id} 
-          className={`notification notification-${notification.type} ${isDarkMode ? 'dark' : ''}`}
-        >
-          <div className="notification-content">
-            <div className="flex items-start gap-3">
-              <div className="notification-icon">
-                {notification.type === 'success' && '✓'}
-                {notification.type === 'error' && '✕'}
-                {notification.type === 'warning' && '⚠'}
-                {notification.type === 'info' && 'ℹ'}
-              </div>
-              <div className="flex-1">
-                <div className="notification-message">{notification.message}</div>
-                <div className="notification-time">
-                  {notification.timestamp.toLocaleTimeString()}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
+const API = 'http://localhost:8007';
+function App() {
+const [view, setView] = useState('datasets');
+const [datasets, setDatasets] = useState([]);
+const [algorithms, setAlgorithms] = useState([]);
+const [runs, setRuns] = useState([]);
+const [ws, setWs] = useState(null);
+const [connected, setConnected] = useState(false);
+const [selectedDataset, setSelectedDataset] = useState(null);
+const [selectedRun, setSelectedRun] = useState(null);
+const [sidebarOpen, setSidebarOpen] = useState(true);
+const [notifications, setNotifications] = useState([]);
+const clientId = useRef(`client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+useEffect(() => { loadData(); connectWebSocket(); const interval = setInterval(loadData, 10000); return () => { clearInterval(interval); if (ws) ws.close(); }; }, []);
+const connectWebSocket = () => { const socket = new WebSocket(`ws://localhost:8007/ws/${clientId.current}`); socket.onopen = () => { setConnected(true); addNotification('connected', 'success'); }; socket.onclose = () => { setConnected(false); setTimeout(connectWebSocket, 3000); }; socket.onmessage = (e) => { const data = JSON.parse(e.data); if (data.type === 'created' || data.type === 'updated' || data.type === 'deleted') { loadData(); } }; setWs(socket); };
+const loadData = async () => { const [ds, alg, rn] = await Promise.all([fetch(`${API}/api/datasets`).then(r => r.json()).catch(() => ({ datasets: [] })), fetch(`${API}/api/algorithms`).then(r => r.json()).catch(() => ({ algorithms: [] })), fetch(`${API}/api/runs`).then(r => r.json()).catch(() => ({ runs: [] }))]); setDatasets(ds.datasets || []); setAlgorithms(alg.algorithms || []); setRuns(rn.runs || []); };
+const addNotification = (message, type = 'info') => { const id = Date.now(); setNotifications(prev => [...prev, { id, message, type }]); setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000); };
+return (<div className="app"><aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}><div className="sidebar-header"><div className="brand"><div className="brand-logo">OS</div>{sidebarOpen && <div className="brand-info"><h1>openslam</h1><span className="version">v2.0</span></div>}</div></div>{sidebarOpen && <div className="sidebar-status"><div className={`connection-status ${connected ? 'connected' : 'disconnected'}`}><span className="status-dot"></span><span>{connected ? 'connected' : 'disconnected'}</span></div></div>}<nav className="sidebar-nav"><button className={view === 'datasets' ? 'active' : ''} onClick={() => setView('datasets')} title="datasets"><span className="nav-icon">📊</span>{sidebarOpen && <span className="nav-label">datasets</span>}</button><button className={view === 'algorithms' ? 'active' : ''} onClick={() => setView('algorithms')} title="algorithms"><span className="nav-icon">🔧</span>{sidebarOpen && <span className="nav-label">algorithms</span>}</button><button className={view === 'runs' ? 'active' : ''} onClick={() => setView('runs')} title="runs"><span className="nav-icon">▶️</span>{sidebarOpen && <span className="nav-label">runs</span>}</button><button className={view === 'results' ? 'active' : ''} onClick={() => setView('results')} title="results"><span className="nav-icon">📈</span>{sidebarOpen && <span className="nav-label">results</span>}</button></nav></aside><button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="toggle sidebar">{sidebarOpen ? '←' : '→'}</button><main className={`main-content ${sidebarOpen ? '' : 'expanded'}`}><div className="content-header"><h2>{view}</h2></div><div className="content-body">{view === 'datasets' && <Datasets datasets={datasets} onUpdate={loadData} onSelect={setSelectedDataset} selected={selectedDataset} addNotification={addNotification} />}{view === 'algorithms' && <Algorithms algorithms={algorithms} onUpdate={loadData} addNotification={addNotification} />}{view === 'runs' && <Runs runs={runs} datasets={datasets.filter(d => d.status === 'processed')} algorithms={algorithms} onUpdate={loadData} addNotification={addNotification} />}{view === 'results' && <Results runs={runs.filter(r => r.status === 'completed')} onSelect={setSelectedRun} selected={selectedRun} />}</div></main><div className="notifications">{notifications.map(n => (<div key={n.id} className={`notification ${n.type}`}><span className="notification-icon">{n.type === 'success' ? '✓' : n.type === 'error' ? '✗' : 'ℹ'}</span><span className="notification-message">{n.message}</span></div>))}</div></div>);
+}
+function Datasets({ datasets, onUpdate, onSelect, selected, addNotification }) {
+const [showModal, setShowModal] = useState(false);
+const [path, setPath] = useState('');
+const [name, setName] = useState('');
+const [loading, setLoading] = useState(false);
+const handleAdd = async () => { if (!path || !name) { addNotification('path and name required', 'error'); return; } setLoading(true); const res = await fetch(`${API}/api/dataset/load`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, name }) }).catch(() => null); setLoading(false); if (res && res.ok) { addNotification('dataset added', 'success'); setShowModal(false); setPath(''); setName(''); onUpdate(); } else { addNotification('failed to add dataset', 'error'); } };
+const handleProcess = async (id) => { const res = await fetch(`${API}/api/dataset/${id}/process`, { method: 'POST' }).catch(() => null); if (res && res.ok) { addNotification('processing started', 'success'); onUpdate(); } else { addNotification('failed to process', 'error'); } };
+const handleDelete = async (id) => { if (!window.confirm('delete this dataset?')) return; const res = await fetch(`${API}/api/dataset/${id}`, { method: 'DELETE' }).catch(() => null); if (res && res.ok) { addNotification('dataset deleted', 'success'); onUpdate(); } else { addNotification('failed to delete', 'error'); } };
+return (<div className="view-container"><div className="view-header"><button className="btn btn-primary" onClick={() => setShowModal(true)}>add dataset</button></div>{datasets.length === 0 ? (<div className="empty-state"><div className="empty-icon">📊</div><h3>no datasets</h3><p>add a dataset to get started</p><button className="btn btn-primary" onClick={() => setShowModal(true)}>add dataset</button></div>) : (<div className="items-grid">{datasets.map(ds => (<div key={ds.id} className={`card ${selected?.id === ds.id ? 'selected' : ''}`} onClick={() => onSelect(ds)}><div className="card-header"><h3>{ds.name}</h3><span className={`badge ${ds.status}`}>{ds.status}</span></div><div className="card-body"><div className="info-row"><span className="label">format</span><span className="value">{ds.format || 'unknown'}</span></div><div className="info-row"><span className="label">frames</span><span className="value">{ds.frames || 0}</span></div>{ds.size && <div className="info-row"><span className="label">size</span><span className="value">{ds.size}</span></div>}</div><div className="card-footer">{ds.status === 'uploaded' && <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); handleProcess(ds.id); }}>process</button>}{ds.status === 'processed' && <span className="status-text">✓ ready</span>}<button className="btn btn-sm btn-ghost" onClick={(e) => { e.stopPropagation(); handleDelete(ds.id); }}>delete</button></div></div>))}</div>)}{showModal && (<div className="modal" onClick={() => setShowModal(false)}><div className="modal-content" onClick={(e) => e.stopPropagation()}><div className="modal-header"><h2>add dataset</h2><button className="modal-close" onClick={() => setShowModal(false)}>×</button></div><div className="modal-body"><div className="form-group"><label>name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="my dataset" /></div><div className="form-group"><label>path</label><input type="text" value={path} onChange={(e) => setPath(e.target.value)} placeholder="/path/to/dataset" /><p className="help-text">absolute path to dataset directory</p></div></div><div className="modal-footer"><button className="btn btn-ghost" onClick={() => setShowModal(false)}>cancel</button><button className="btn btn-primary" onClick={handleAdd} disabled={loading}>{loading ? 'adding...' : 'add'}</button></div></div></div>)}</div>);
+}
+function Algorithms({ algorithms, onUpdate, addNotification }) {
+const [showModal, setShowModal] = useState(false);
+const [name, setName] = useState('');
+const [code, setCode] = useState('class CustomSLAM:\n    def initialize(self, cfg):\n        pass\n    def process_frame(self, frame_data):\n        return None\n    def finalize(self):\n        return {}');
+const [loading, setLoading] = useState(false);
+const handleCreate = async () => { if (!name) { addNotification('name required', 'error'); return; } setLoading(true); const res = await fetch(`${API}/api/algorithm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, code, params: {} }) }).catch(() => null); setLoading(false); if (res && res.ok) { addNotification('algorithm created', 'success'); setShowModal(false); setName(''); onUpdate(); } else { addNotification('failed to create', 'error'); } };
+const handleDelete = async (id) => { if (!window.confirm('delete this algorithm?')) return; const res = await fetch(`${API}/api/algorithm/${id}`, { method: 'DELETE' }).catch(() => null); if (res && res.ok) { addNotification('algorithm deleted', 'success'); onUpdate(); } else { addNotification('failed to delete', 'error'); } };
+return (<div className="view-container"><div className="view-header"><button className="btn btn-primary" onClick={() => setShowModal(true)}>create algorithm</button></div>{algorithms.length === 0 ? (<div className="empty-state"><div className="empty-icon">🔧</div><h3>no algorithms</h3><p>create an algorithm to get started</p><button className="btn btn-primary" onClick={() => setShowModal(true)}>create algorithm</button></div>) : (<div className="items-grid">{algorithms.map(alg => (<div key={alg.id} className="card"><div className="card-header"><h3>{alg.name}</h3><span className="badge custom">{alg.type || 'custom'}</span></div><div className="card-body"><div className="info-row"><span className="label">created</span><span className="value">{alg.created ? new Date(alg.created).toLocaleDateString() : 'n/a'}</span></div></div><div className="card-footer"><button className="btn btn-sm btn-ghost" onClick={() => handleDelete(alg.id)}>delete</button></div></div>))}</div>)}{showModal && (<div className="modal" onClick={() => setShowModal(false)}><div className="modal-content" onClick={(e) => e.stopPropagation()}><div className="modal-header"><h2>create algorithm</h2><button className="modal-close" onClick={() => setShowModal(false)}>×</button></div><div className="modal-body"><div className="form-group"><label>name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="my algorithm" /></div><div className="form-group"><label>implementation</label><textarea value={code} onChange={(e) => setCode(e.target.value)} rows={12} /></div></div><div className="modal-footer"><button className="btn btn-ghost" onClick={() => setShowModal(false)}>cancel</button><button className="btn btn-primary" onClick={handleCreate} disabled={loading}>{loading ? 'creating...' : 'create'}</button></div></div></div>)}</div>);
+}
+function Runs({ runs, datasets, algorithms, onUpdate, addNotification }) {
+const [selectedDataset, setSelectedDataset] = useState('');
+const [selectedAlgorithm, setSelectedAlgorithm] = useState('');
+const [loading, setLoading] = useState(false);
+const handleRun = async () => { if (!selectedDataset || !selectedAlgorithm) { addNotification('select dataset and algorithm', 'error'); return; } setLoading(true); const res = await fetch(`${API}/api/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataset_id: selectedDataset, algorithm_id: selectedAlgorithm }) }).catch(() => null); setLoading(false); if (res && res.ok) { addNotification('run started', 'success'); setSelectedDataset(''); setSelectedAlgorithm(''); onUpdate(); } else { addNotification('failed to start run', 'error'); } };
+const handleDelete = async (id) => { if (!window.confirm('delete this run?')) return; const res = await fetch(`${API}/api/run/${id}`, { method: 'DELETE' }).catch(() => null); if (res && res.ok) { addNotification('run deleted', 'success'); onUpdate(); } else { addNotification('failed to delete', 'error'); } };
+return (<div className="view-container"><div className="run-panel"><h3>start evaluation</h3><div className="form-row"><div className="form-group"><label>dataset</label><select value={selectedDataset} onChange={(e) => setSelectedDataset(e.target.value)}><option value="">select dataset</option>{datasets.map(ds => (<option key={ds.id} value={ds.id}>{ds.name}</option>))}</select></div><div className="form-group"><label>algorithm</label><select value={selectedAlgorithm} onChange={(e) => setSelectedAlgorithm(e.target.value)}><option value="">select algorithm</option>{algorithms.map(alg => (<option key={alg.id} value={alg.id}>{alg.name}</option>))}</select></div><button className="btn btn-primary" onClick={handleRun} disabled={loading}>{loading ? 'starting...' : 'start'}</button></div></div>{runs.length === 0 ? (<div className="empty-state"><div className="empty-icon">▶️</div><h3>no runs</h3><p>start an evaluation to see results</p></div>) : (<div className="runs-list">{runs.map(run => (<div key={run.id} className="run-item"><div className="run-header"><div className="run-info"><h4>{run.id}</h4><span className={`badge ${run.status}`}>{run.status}</span></div><button className="btn btn-sm btn-ghost" onClick={() => handleDelete(run.id)}>delete</button></div><div className="run-body"><div className="info-row"><span className="label">dataset</span><span className="value">{run.dataset_name}</span></div><div className="info-row"><span className="label">algorithm</span><span className="value">{run.algorithm_name}</span></div>{run.duration > 0 && <div className="info-row"><span className="label">duration</span><span className="value">{run.duration}s</span></div>}</div>{run.status === 'running' && run.progress > 0 && (<div className="progress-bar"><div className="progress-fill" style={{ width: `${run.progress}%` }}></div><span className="progress-text">{run.progress}%</span></div>)}</div>))}</div>)}</div>);
+}
+function Results({ runs, onSelect, selected }) {
+return (<div className="view-container">{runs.length === 0 ? (<div className="empty-state"><div className="empty-icon">📈</div><h3>no results</h3><p>complete some runs to view results</p></div>) : (<div className="results-layout"><div className="results-sidebar"><h3>completed runs</h3><div className="results-list">{runs.map(run => (<div key={run.id} className={`result-item ${selected?.id === run.id ? 'active' : ''}`} onClick={() => onSelect(run)}><h4>{run.id.substring(0, 8)}</h4><p>{run.algorithm_name}</p><p className="secondary">{run.dataset_name}</p>{run.metrics?.ate_rmse && <p className="metric">ate: {run.metrics.ate_rmse.toFixed(4)}</p>}</div>))}</div></div><div className="results-content">{!selected ? (<div className="empty-state"><h3>select a run</h3><p>choose a run to view detailed results</p></div>) : (<div className="result-details"><h2>run {selected.id}</h2><div className="result-meta"><span>dataset: {selected.dataset_name}</span><span>algorithm: {selected.algorithm_name}</span><span>duration: {selected.duration}s</span></div>{selected.metrics && (<div className="metrics-grid">{Object.entries(selected.metrics).map(([key, val]) => (<div key={key} className="metric-card"><span className="metric-label">{key.replace(/_/g, ' ')}</span><span className="metric-value">{typeof val === 'number' ? val.toFixed(4) : val}</span></div>))}</div>)}</div>)}</div></div>)}</div>);
+}
 export default App;

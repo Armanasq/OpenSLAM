@@ -1,0 +1,29 @@
+name: "ORB-SLAM3"
+version: "1.0"
+description: "ORB-SLAM3 - Visual, Visual-Inertial and Multi-Map SLAM"
+author: "Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M. M. Montiel, Juan D. Tardós"
+entry_point: "orbslam3_wrapper.py"
+functions:
+  initialize: "orbslam3_init"
+  process_frame: "orbslam3_track"
+  get_current_pose: "orbslam3_get_pose"
+  get_full_trajectory: "orbslam3_get_trajectory"
+  shutdown: "orbslam3_shutdown"
+input_types:
+  - image
+  - stereo
+  - rgbd
+  - imu
+output_format: "trajectory"
+data_adapters:
+  kitti: "ORBKITTIAdapter"
+  tum: "ORBTUMAdapter"
+  euroc: "ORBEuRoCAdapter"
+  custom: "ORBGenericAdapter"
+default_params:
+  sensor_type: "monocular"
+  num_features: 2000
+  scale_factor: 1.2
+  num_levels: 8
+  use_imu: false
+  vocabulary_path: "vocabulary/ORBvoc.txt"

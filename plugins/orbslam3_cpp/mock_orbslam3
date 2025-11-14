@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+import sys
+import numpy as np
+from pathlib import Path
+import time
+
+def main():
+    if len(sys.argv) < 5:
+        print("Usage: mock_orbslam3 <vocab_path> <settings_path> <image_dir> <output_trajectory>", file=sys.stderr)
+        sys.exit(1)
+
+    vocab_path = sys.argv[1]
+    settings_path = sys.argv[2]
+    image_dir = Path(sys.argv[3])
+    output_trajectory = Path(sys.argv[4])
+
+    print(f"Mock ORB-SLAM3 started")
+    print(f"Vocabulary: {vocab_path}")
+    print(f"Settings: {settings_path}")
+    print(f"Image directory: {image_dir}")
+    print(f"Output trajectory: {output_trajectory}")
+
+    num_frames = 100
+
+    trajectory_lines = []
+    for i in range(num_frames):
+        timestamp = i * 0.1
+        noise_t = np.random.randn(3) * 0.08
+        noise_r = np.random.randn(4) * 0.02
+
+        tx = i * 0.5 + noise_t[0]
+        ty = 0.0 + noise_t[1]
+        tz = 0.0 + noise_t[2]
+
+        qw = 1.0 + noise_r[0]
+        qx = 0.0 + noise_r[1]
+        qy = 0.0 + noise_r[2]
+        qz = 0.0 + noise_r[3]
+
+        norm = np.sqrt(qw**2 + qx**2 + qy**2 + qz**2)
+        qw, qx, qy, qz = qw/norm, qx/norm, qy/norm, qz/norm
+
+        line = f"{timestamp} {tx} {ty} {tz} {qx} {qy} {qz} {qw}\n"
+        trajectory_lines.append(line)
+
+        if i % 10 == 0:
+            print(f"Processed frame {i}/{num_frames}")
+
+    output_trajectory.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_trajectory, 'w') as f:
+        f.writelines(trajectory_lines)
+
+    print(f"Trajectory saved to {output_trajectory}")
+    print(f"Mock ORB-SLAM3 completed successfully")
+
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -1,0 +1,22 @@
+name: "ExampleSLAM"
+version: "1.0.0"
+description: "Example SLAM plugin demonstrating the plugin system"
+author: "OpenSLAM Team"
+entry_point: "slam_wrapper.py"
+functions:
+  initialize: "slam_init"
+  process_frame: "slam_track"
+  get_current_pose: "get_camera_pose"
+  get_full_trajectory: "get_trajectory"
+  shutdown: "slam_shutdown"
+input_types:
+  - image
+  - stereo
+output_format: "trajectory"
+data_adapters:
+  kitti: "KITTIDataAdapter"
+  tum: "TUMDataAdapter"
+  euroc: "EuRoCDataAdapter"
+  custom: "GenericDataAdapter"
+default_params:
+  noise_level: 0.05

@@ -1,0 +1,13 @@
+name: extract_poses
+type: transform
+method: mapping
+description: extract poses array from trajectory dict
+
+input:
+  type: dict
+
+output:
+  type: array
+
+mapping:
+  poses: poses

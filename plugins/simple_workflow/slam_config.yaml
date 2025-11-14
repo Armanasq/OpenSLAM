@@ -1,0 +1,26 @@
+name: "SimpleWorkflow"
+version: "1.0.0"
+description: "Simple workflow for testing without Docker"
+
+input_types: [image]
+output_format: trajectory
+
+workflow:
+  stages:
+    - name: prepare
+      type: prepare
+      tasks:
+        - name: load_trajectory
+          connector: tum_trajectory
+          config:
+            input: "${DATASET_PATH}"
+          output: trajectory_data
+
+    - name: extract
+      type: extract
+      tasks:
+        - name: extract_trajectory
+          connector: identity
+          config:
+            input: "${trajectory_data}"
+          output: trajectory

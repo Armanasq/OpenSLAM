@@ -1,0 +1,26 @@
+name: "VINS-Mono"
+version: "1.0"
+description: "VINS-Mono - Robust and Versatile Monocular Visual-Inertial State Estimator"
+author: "Tong Qin, Peiliang Li, Zhenfei Yang, Shaojie Shen"
+entry_point: "vins_wrapper.py"
+functions:
+  initialize: "vins_init"
+  process_frame: "vins_process"
+  get_current_pose: "vins_get_pose"
+  get_full_trajectory: "vins_get_trajectory"
+  shutdown: "vins_shutdown"
+input_types:
+  - image
+  - imu
+output_format: "trajectory"
+data_adapters:
+  kitti: "VINSKITTIAdapter"
+  tum: "VINSTUMAdapter"
+  euroc: "VINSEuRoCAdapter"
+  custom: "VINSGenericAdapter"
+default_params:
+  max_features: 150
+  min_parallax: 10.0
+  keyframe_parallax: 10.0
+  estimate_extrinsic: 1
+  estimate_td: 1

@@ -1,0 +1,61 @@
+name: "ORB-SLAM3-Workflow"
+version: "1.0.0"
+description: "ORB-SLAM3 with zero-code workflow configuration"
+
+input_types: [image]
+output_format: trajectory
+
+docker:
+  image: "openslam/orbslam3:latest"
+
+interface:
+  command:
+    - "/root/ORB_SLAM3/Examples/Monocular/mono_kitti"
+    - "${vocabulary}"
+    - "${calibration}"
+    - "${image_directory}"
+
+  inputs:
+    - name: vocabulary
+      type: file
+      source: download
+      url: "https://github.com/UZ-SLAMLab/ORB_SLAM3/raw/master/Vocabulary/ORBvoc.txt.tar.gz"
+      extract: true
+      mount: /data/vocab.txt
+
+    - name: calibration
+      type: file
+      source: dataset_metadata
+      connector: kitti_to_orbslam_calib
+      mount: /data/calib.yaml
+
+    - name: image_directory
+      type: directory
+      source: dataset_images
+      connector: extract_images
+      mount: /data/images
+
+  outputs:
+    - name: trajectory
+      type: file
+      format: tum
+      file: KeyFrameTrajectory.txt
+      location: /output
+
+  volumes:
+    - host: "${TEMP_DIR}/vocab.txt"
+      container: /data/vocab.txt
+      mode: ro
+    - host: "${TEMP_DIR}/calib.yaml"
+      container: /data/calib.yaml
+      mode: ro
+    - host: "${TEMP_DIR}/images"
+      container: /data/images
+      mode: ro
+    - host: "${OUTPUT_DIR}"
+      container: /output
+      mode: rw
+
+execution:
+  timeout: 600
+  max_memory_mb: 4096

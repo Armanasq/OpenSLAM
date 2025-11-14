@@ -1,0 +1,10 @@
+PLUGIN_INTERFACE_VERSION = '1.0'
+REQUIRED_FUNCTIONS = ['initialize', 'process_frame', 'get_current_pose', 'shutdown']
+OPTIONAL_FUNCTIONS = ['get_full_trajectory', 'get_map', 'reset', 'get_tracking_status']
+SUPPORTED_INPUT_TYPES = ['image', 'stereo', 'rgbd', 'lidar', 'imu', 'odom']
+SUPPORTED_OUTPUT_FORMATS = ['pose', 'trajectory', 'pointcloud', 'map']
+DATA_ADAPTERS = {'kitti': 'KITTIAdapter', 'tum': 'TUMAdapter', 'euroc': 'EuRoCAdapter', 'rosbag': 'ROSBagAdapter', 'custom': 'CustomAdapter'}
+DEFAULT_TIMEOUT = 300
+MAX_FRAME_PROCESSING_TIME = 10.0
+PLUGIN_DIR = 'plugins'
+CONFIG_FILENAME = 'slam_config.yaml'
