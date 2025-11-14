@@ -1,34 +1,47 @@
-# OpenSLAM v0.1
+# OpenSLAM v2.0
 
 <div align="center">
 
-![OpenSLAM Logo](logo.jpg)
+![OpenSLAM Logo](assets/logo.jpg)
 
-**Interactive SLAM Development Platform**
+**Research-Grade SLAM Evaluation Platform**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/react-18.0+-blue.svg)](https://reactjs.org/)
-[![FastAPI](https://img.shields.io/badge/fastapi-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+[![FastAPI](https://img.shields.io/badge/fastapi-latest-green.svg)](https://fastapi.tiangolo.com/)
 
-[Features](#features) • [Installation](#installation) • [Usage](#usage) • [Documentation](#documentation) • [Contributing](#contributing)
+[Quick Start](#-quick-start) • [Features](#-features) • [Documentation](#-documentation) • [Structure](#-project-structure) • [Contributing](#-contributing)
 
 </div>
 
 ---
 
+## 🚀 Quick Start
+
+```bash
+./start_openslam.sh
+```
+
+**Access the application:**
+- 🌐 Frontend: http://localhost:3001
+- 📡 Backend API: http://localhost:8007
+- 📖 API Docs: http://localhost:8007/docs
+
+---
+
 ## 📖 Overview
 
-OpenSLAM is a comprehensive web-based platform for learning, developing, and researching Simultaneous Localization and Mapping (SLAM) algorithms. It provides an integrated environment that combines dataset management, algorithm development, real-time visualization, and performance analysis in a single, user-friendly interface.
+OpenSLAM is a comprehensive SLAM evaluation platform that combines zero-code integration, modern web interface, and professional-grade evaluation tools. Designed for researchers and developers to quickly evaluate and compare SLAM algorithms without complex setup.
 
 ### 🎯 Key Highlights
 
-- **🌐 Web-Based**: No installation required - access everything through your browser
-- **🔌 Plugin Architecture**: Easy integration of custom SLAM algorithms
-- **📊 Real-Time Visualization**: 3D trajectory and point cloud rendering
-- **🎓 Interactive Tutorials**: Learn SLAM concepts hands-on
-- **⚡ Live Development**: Integrated IDE with terminal and debugger
-- **📈 Performance Analysis**: Comprehensive metrics (ATE, RPE) and comparison tools
+- **⚡ Zero-Code Integration**: Add SLAM algorithms via YAML configuration - no coding required
+- **🔌 Plugin System**: Flexible plugin architecture with Python, C++, and Docker support
+- **📊 Real-Time Updates**: WebSocket-based live progress tracking
+- **🎓 Multiple Formats**: KITTI, EuRoC, TUM RGB-D, ROS bags
+- **⚙️ Docker Support**: Containerized SLAM execution
+- **📈 Comprehensive Metrics**: ATE, RPE, robustness, alignment, and more
 
 ---
 
@@ -44,11 +57,11 @@ OpenSLAM is a comprehensive web-based platform for learning, developing, and res
 
 ### ⚡ Algorithm Development
 
-- **Monaco Code Editor**: Professional IDE experience with syntax highlighting
-- **File Explorer**: Navigate and edit algorithm files
-- **Integrated Terminal**: Run commands directly in the browser
-- **Code Execution**: Test algorithms with real-time feedback
 - **Plugin System**: Standardized interface for algorithm integration
+- **Zero-Code YAML**: Configure algorithms without writing code
+- **Python & C++ Support**: Multiple language bindings
+- **Docker Integration**: Containerized algorithm execution
+- **Real-Time Feedback**: Live execution progress and status updates
 
 ### 📊 Visualization
 
@@ -65,13 +78,6 @@ OpenSLAM is a comprehensive web-based platform for learning, developing, and res
 - **Statistical Analysis**: Detailed metric breakdowns
 - **Export Capabilities**: Save results as CSV/JSON
 - **Visual Reports**: Automatic plot generation
-
-### 🎓 Tutorial System
-
-- **Interactive Learning**: Step-by-step SLAM tutorials
-- **Code Templates**: Pre-built examples for common tasks
-- **Solution Validation**: Automatic feedback on implementations
-- **Progress Tracking**: Monitor learning advancement
 
 ### 🔧 Supported Algorithms
 
@@ -92,46 +98,55 @@ OpenSLAM is a comprehensive web-based platform for learning, developing, and res
 - **npm**: 8.0 or higher
 - **Docker** (optional): For containerized deployment
 
-### Quick Start
+### Automated Setup (Recommended)
 
 #### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/yourusername/OpenSLAM.git
-cd OpenSLAM/OpenSLAM_v0.1
+cd OpenSLAM
 ```
 
-#### 2. Backend Setup
+#### 2. Run the Startup Script
 
 ```bash
-# Install Python dependencies
+./start_openslam.sh
+```
+
+This script will automatically:
+- Create and activate a Python virtual environment
+- Install all Python dependencies
+- Install all Node.js dependencies
+- Create required directories
+- Start the FastAPI backend on port 8007
+- Start the React frontend on port 3001
+
+The system will be ready at:
+- 🌐 **Frontend**: http://localhost:3001
+- 📡 **Backend**: http://localhost:8007
+- 📖 **API Docs**: http://localhost:8007/docs
+
+### Manual Setup
+
+If you prefer manual setup:
+
+```bash
+# 1. Setup Python environment
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 
-# Set environment variables (optional)
-export OPENSLAM_DATA_DIR=/path/to/your/datasets
-export OPENSLAM_LOG_DIR=/path/to/logs
-export OPENSLAM_TEMP_DIR=/path/to/temp
-
-# Run the backend server
-python run_backend.py
-```
-
-The backend will start on `http://localhost:8007`
-
-#### 3. Frontend Setup
-
-```bash
-# Navigate to frontend directory
+# 2. Setup frontend
 cd frontend
-
-# Install Node.js dependencies
 npm install
+cd ..
 
-# Start the development server
-npm start
+# 3. Start backend
+python3 run_backend.py &
+
+# 4. Start frontend
+cd frontend && npm start
 ```
-
-The frontend will start on `http://localhost:3001`
 
 ### Docker Deployment
 
@@ -160,15 +175,22 @@ Access the application at:
 
 The platform will automatically validate the dataset structure and load calibration data.
 
-### Developing an Algorithm
+### Running SLAM Algorithms
 
+**Via Web Interface:**
 1. Go to the **Algorithms** page
-2. Select an algorithm template or create a new one
-3. Write your algorithm code in the Monaco editor
-4. Click **"Validate Code"** to check for syntax errors
-5. Select a dataset for testing
-6. Click **"Execute Algorithm"**
-7. View results in the **Visualization** tab
+2. Select a SLAM algorithm from the library
+3. Choose a loaded dataset
+4. Configure algorithm parameters
+5. Click **"Execute"** to start evaluation
+6. Monitor progress in real-time via WebSocket updates
+7. View results in the **Visualization** and **Analysis** tabs
+
+**Via Zero-Code YAML:**
+1. Create a workflow configuration (see `examples/`)
+2. Define dataset, algorithm, and evaluation settings
+3. Run: `python openslam.py run-workflow my_config.yaml`
+4. Results saved automatically to `results/`
 
 ### Comparing Algorithms
 
@@ -176,24 +198,15 @@ The platform will automatically validate the dataset structure and load calibrat
 2. Navigate to the **Analysis** page
 3. Select algorithms to compare
 4. View side-by-side metrics and plots
-5. Export results for further analysis
-
-### Following Tutorials
-
-1. Click on **Tutorials** in the navigation
-2. Select a tutorial from the list
-3. Read the step description
-4. Write code in the provided editor
-5. Click **"Submit Solution"** for validation
-6. Progress to the next step upon success
+5. Export results as CSV/JSON for further analysis
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Project Structure
 
 ```
-OpenSLAM_v0.1/
-├── frontend/              # React frontend application
+OpenSLAM/
+├── frontend/              # React 18 frontend application
 │   ├── src/
 │   │   ├── components/    # React components
 │   │   ├── App.js         # Main application
@@ -202,51 +215,99 @@ OpenSLAM_v0.1/
 │   └── package.json       # Node.js dependencies
 │
 ├── backend/               # FastAPI backend server
-│   ├── api/               # API endpoints
-│   ├── core/              # Core modules
-│   │   ├── dataset_manager.py
-│   │   ├── algorithm_loader.py
-│   │   ├── code_executor.py
-│   │   └── ...
-│   ├── algorithms/        # Built-in algorithms
-│   └── requirements.txt   # Python dependencies
+│   └── api/
+│       └── main.py        # Main FastAPI application (800+ lines)
 │
-├── algorithms/            # Algorithm plugins
+├── core/                  # Core SLAM evaluation modules
+│   ├── plugin_manager.py  # Plugin discovery & validation
+│   ├── plugin_executor.py # SLAM execution engine
+│   ├── connector_engine.py # Zero-code transformations
+│   ├── workflow_executor.py # Multi-stage workflows
+│   ├── docker_orchestrator.py # Container execution
+│   ├── dataset_loader.py  # Multi-format dataset support
+│   ├── trajectory.py      # Trajectory processing
+│   ├── metrics.py         # ATE, RPE, and advanced metrics
+│   ├── visualization.py   # 2D/3D plotting
+│   └── alignment.py       # SE3/Sim3 alignment
+│
+├── algorithms/            # SLAM algorithm implementations
 │   ├── orb_slam3/
 │   ├── vins_mono/
 │   ├── liosam/
 │   ├── rtabmap/
 │   └── dso/
 │
-├── shared/                # Shared models and interfaces
-│   ├── models.py          # Pydantic models
-│   └── interfaces.py      # Abstract base classes
+├── plugins/               # Additional SLAM plugins
+├── connectors/            # Zero-code data transformations
+│
+├── docs/                  # Complete documentation
+│   ├── SYSTEM_README.md   # Architecture overview
+│   ├── API_README.md      # API reference
+│   ├── PLUGIN_DEVELOPMENT_GUIDE.md
+│   ├── ZERO_CODE_INTEGRATION.md
+│   └── ... (14 documentation files)
+│
+├── examples/              # Example configurations
+│   ├── plugin_template.yaml
+│   ├── batch_config_example.yaml
+│   └── slam_comparison.yaml
+│
+├── scripts/               # Utility scripts
+│   ├── start_openslam.sh  # Main startup script
+│   ├── quick_start.sh
+│   └── run_server.sh
+│
+├── tests/                 # Test suite
+│   ├── test_websocket.py
+│   └── generate_test_data.py
 │
 ├── config/                # Configuration files
-│   └── settings.py        # Application settings
+│   ├── openslam_config.py
+│   ├── plugin_config.py
+│   └── docker_config.py
 │
-└── docker-compose.yml     # Docker configuration
+├── assets/                # Images and media
+│   └── logo.jpg
+│
+├── data/                  # Dataset storage
+├── results/               # Evaluation results
+├── uploads/               # File uploads
+├── cache/                 # Cache directory
+├── temp/                  # Temporary files
+├── logs/                  # Log files
+│
+├── others/                # Archived/backup code
+│   ├── flask_api_backup/  # Previous Flask implementation
+│   └── vanilla_js_scripts/ # Previous vanilla JS frontend
+│
+├── config.py              # Main configuration
+├── openslam.py            # CLI tool
+├── run_backend.py         # Backend launcher
+├── requirements.txt       # Python dependencies
+├── docker-compose.yml     # Docker configuration
+└── README.md              # This file
 ```
 
 ### Technology Stack
 
 **Frontend:**
-
-- React 18
-- React Router
-- Monaco Editor
-- Plotly.js
-- Three.js
-- WebSocket
+- React 18 with React Router
+- Plotly.js for 2D/3D visualization
+- WebSocket for real-time updates
+- Modern responsive UI/UX
 
 **Backend:**
+- FastAPI for high-performance REST API
+- Pydantic for data validation
+- NumPy for numerical computations
+- OpenCV for image processing
+- WebSocket for live progress tracking
 
-- FastAPI
-- Pydantic
-- NumPy
-- OpenCV
-- WebSocket
-- PTY (Terminal)
+**Core:**
+- Plugin architecture for SLAM integration
+- Docker support for containerized execution
+- Multi-format dataset support (KITTI, EuRoC, TUM, ROS bags)
+- Zero-code YAML workflows
 
 ---
 
@@ -286,39 +347,44 @@ Once the backend is running, visit `http://localhost:8007/docs` for interactive 
 
 ### Plugin Structure
 
+See `docs/PLUGIN_DEVELOPMENT_GUIDE.md` for detailed plugin development instructions.
+
+**Basic structure:**
+
 ```
-my_algorithm/
-├── config.json           # Algorithm metadata
+algorithms/my_algorithm/
+├── config.yaml           # Algorithm metadata
 ├── launcher.py           # Entry point
 ├── algorithm.py          # Implementation
 ├── README.md            # Documentation
 └── requirements.txt     # Dependencies (optional)
 ```
 
-### config.json Example
+**Example templates** are available in the `examples/` directory:
+- `examples/plugin_template.yaml` - YAML plugin configuration
+- `examples/batch_config_example.yaml` - Batch evaluation setup
+- `examples/slam_comparison.yaml` - Multi-algorithm comparison
 
-```json
-{
-  "name": "My SLAM Algorithm",
-  "category": "Visual SLAM",
-  "description": "Description of your algorithm",
-  "author": "Your Name",
-  "version": "1.0.0",
-  "sensors": ["camera", "imu"],
-  "parameters": {
-    "feature_threshold": 0.01,
-    "max_features": 1000
-  }
-}
+### Quick Plugin Example
+
+```yaml
+# config.yaml
+name: "My SLAM Algorithm"
+category: "Visual SLAM"
+description: "Description of your algorithm"
+author: "Your Name"
+version: "1.0.0"
+sensors: ["camera", "imu"]
+parameters:
+  feature_threshold: 0.01
+  max_features: 1000
 ```
 
-### launcher.py Example
-
 ```python
-from shared.interfaces import SLAMAlgorithm
+# launcher.py
 import numpy as np
 
-class MyAlgorithm(SLAMAlgorithm):
+class MyAlgorithm:
     def initialize(self, config):
         # Initialize your algorithm
         return True
@@ -332,25 +398,36 @@ class MyAlgorithm(SLAMAlgorithm):
 
     def get_trajectory(self):
         # Return full trajectory
-        return np.array([])
+        return self.trajectory
 
-    def get_map(self):
-        # Return map points
-        return None
+    def finalize(self):
+        # Cleanup
+        pass
 ```
+
+For more details, see:
+- `docs/PLUGIN_DEVELOPMENT_GUIDE.md` - Complete plugin development guide
+- `docs/ZERO_CODE_INTEGRATION.md` - Zero-code YAML integration
+- `docs/CPP_INTEGRATION_GUIDE.md` - C++ plugin integration
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-# Backend tests
-cd backend
-pytest
+# Run test suite
+cd tests
+python test_websocket.py
+python generate_test_data.py
 
 # Frontend tests
 cd frontend
 npm test
+
+# Manual testing
+# 1. Start the system: ./start_openslam.sh
+# 2. Access frontend: http://localhost:3001
+# 3. Check API docs: http://localhost:8007/docs
 ```
 
 ---
@@ -385,14 +462,20 @@ export OPENSLAM_BACKEND_PORT=8007
 export OPENSLAM_FRONTEND_PORT=3001
 ```
 
-### config/settings.py
+### Configuration Files
 
-Modify `config/settings.py` to customize:
+**Main configuration** (`config.py`):
+- Directory paths (data, logs, temp, uploads, results, cache)
+- Server ports (backend: 8007, frontend: 3001)
+- Dataset formats and sensor types
+- Metrics and visualization settings
 
-- Directory paths
-- Server ports
-- Algorithm parameters
-- Logging levels
+**Additional configs** (in `config/` directory):
+- `config/openslam_config.py` - OpenSLAM settings
+- `config/plugin_config.py` - Plugin system settings
+- `config/docker_config.py` - Docker orchestration settings
+
+See `docs/SYSTEM_README.md` for detailed configuration options.
 
 ---
 
@@ -418,11 +501,15 @@ lsof -i :8007
 node --version  # Should be 16.0+
 
 # Clear cache and reinstall
+cd frontend
 rm -rf node_modules package-lock.json
 npm install
 
 # Check port availability
 lsof -i :3001
+
+# Check logs
+tail -f logs/frontend.log
 ```
 
 ### Dataset loading fails
@@ -481,34 +568,52 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🗺️ Roadmap
 
-### v0.2 (Planned)
+### v2.0 (Current) ✅
 
-- [ ] Multi-dataset format support (EuRoC, TUM RGB-D)
-- [ ] Enhanced 3D visualization with Three.js
+- [x] Zero-code YAML integration
+- [x] Plugin architecture with Python/C++/Docker support
+- [x] Multi-dataset format support (KITTI, EuRoC, TUM RGB-D, ROS bags)
+- [x] FastAPI backend with WebSocket support
+- [x] React 18 frontend with real-time updates
+- [x] Comprehensive documentation in `docs/`
+- [x] Clean project structure and organization
+
+### v2.1 (Planned)
+
+- [ ] Enhanced 3D visualization
 - [ ] Real-time algorithm debugging
 - [ ] Parameter tuning interface
+- [ ] Web-based dataset browser
+- [ ] Automated benchmark reporting
 
-### v0.3 (Planned)
+### v3.0 (Future)
 
 - [ ] User authentication and authorization
 - [ ] Multi-user collaboration
 - [ ] Cloud dataset storage
-- [ ] Automated benchmarking suite
-
-### v1.0 (Future)
-
-- [ ] Production-ready deployment
 - [ ] Advanced machine learning integration
 - [ ] Mobile app support
-- [ ] Enterprise features
 
 ---
 
 ## 📈 Project Status
 
-**Current Version**: 0.1.0  
-**Status**: Active Development  
+**Current Version**: 2.0.0
+**Status**: Active Development
 **Last Updated**: November 2025
+
+---
+
+## 📚 Documentation
+
+For detailed documentation, see the `docs/` directory:
+
+- **`docs/SYSTEM_README.md`** - Complete architecture overview
+- **`docs/API_README.md`** - API reference and endpoints
+- **`docs/PLUGIN_DEVELOPMENT_GUIDE.md`** - Plugin development guide
+- **`docs/ZERO_CODE_INTEGRATION.md`** - Zero-code YAML workflows
+- **`docs/CPP_INTEGRATION_GUIDE.md`** - C++ plugin integration
+- **`docs/SLAM_INTEGRATION_COOKBOOK.md`** - SLAM integration recipes
 
 ---
 
@@ -516,6 +621,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ for the SLAM community**
 
-[⬆ Back to Top](#openslam-v01)
+[⬆ Back to Top](#openslam-v20)
 
 </div>
