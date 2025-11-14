@@ -4,6 +4,7 @@ from pathlib import Path
 import plugin_config as pcfg
 from core.plugin_manager import PluginManager
 from core import dataset_loader, metrics
+from core.cpp_slam_wrapper import CPPSLAMWrapper
 class PluginExecutor:
     def __init__(self, plugin_name):
         self.plugin_name = plugin_name
@@ -13,21 +14,33 @@ class PluginExecutor:
         self.trajectory = []
         self.timestamps = []
         self.processing_times = []
+        self.is_cpp_plugin = False
+        self.cpp_wrapper = None
     def load(self):
         plugin, error = self.plugin_manager.load_plugin(self.plugin_name)
         if error:
             return None, error
         self.plugin = plugin
+        plugin_config = plugin['config']
+        if plugin_config.get('language') == 'cpp':
+            self.is_cpp_plugin = True
+            self.cpp_wrapper = CPPSLAMWrapper(plugin_config)
         return plugin, None
     def initialize(self, config_params=None):
         if self.plugin is None:
             return None, 'plugin_not_loaded'
-        init_func, error = self.plugin_manager.get_plugin_function(self.plugin, 'initialize')
-        if error:
-            return None, error
         plugin_config = self.plugin['config']
         if config_params is None:
             config_params = plugin_config.get('default_params', {})
+        if self.is_cpp_plugin:
+            state, error = self.cpp_wrapper.initialize(config_params)
+            if error:
+                return None, error
+            self.state = state if state else {}
+            return self.state, None
+        init_func, error = self.plugin_manager.get_plugin_function(self.plugin, 'initialize')
+        if error:
+            return None, error
         result = init_func(config_params)
         if isinstance(result, tuple) and len(result) == 2:
             state, error = result
@@ -37,13 +50,20 @@ class PluginExecutor:
         else:
             self.state = result if result else {}
         return self.state, None
-    def process_frame(self, frame_data):
+    def process_frame(self, frame_data, image_path=None):
         if self.plugin is None:
             return None, 'plugin_not_loaded'
+        start_time = time.time()
+        if self.is_cpp_plugin:
+            result, error = self.cpp_wrapper.process_frame(self.state, frame_data, image_path)
+            processing_time = time.time() - start_time
+            self.processing_times.append(processing_time)
+            if error:
+                return None, error
+            return result, None
         process_func, error = self.plugin_manager.get_plugin_function(self.plugin, 'process_frame')
         if error:
             return None, error
-        start_time = time.time()
         result = process_func(self.state, frame_data)
         processing_time = time.time() - start_time
         self.processing_times.append(processing_time)
@@ -58,6 +78,10 @@ class PluginExecutor:
     def get_current_pose(self):
         if self.plugin is None:
             return None, 'plugin_not_loaded'
+        if self.is_cpp_plugin:
+            if 'current_pose' in self.state:
+                return self.state['current_pose'], None
+            return None, 'pose_not_available'
         get_pose_func, error = self.plugin_manager.get_plugin_function(self.plugin, 'get_current_pose')
         if error:
             return None, error
@@ -71,6 +95,13 @@ class PluginExecutor:
     def get_full_trajectory(self):
         if self.plugin is None:
             return None, 'plugin_not_loaded'
+        if self.is_cpp_plugin:
+            trajectory, error = self.cpp_wrapper.get_trajectory(self.state)
+            if error:
+                if len(self.trajectory) > 0:
+                    return np.array(self.trajectory), None
+                return None, error
+            return trajectory, None
         get_traj_func, error = self.plugin_manager.get_plugin_function(self.plugin, 'get_full_trajectory')
         if error:
             if len(self.trajectory) > 0:
@@ -86,6 +117,8 @@ class PluginExecutor:
     def shutdown(self):
         if self.plugin is None:
             return None, 'plugin_not_loaded'
+        if self.is_cpp_plugin:
+            return self.cpp_wrapper.shutdown(self.state)
         shutdown_func, error = self.plugin_manager.get_plugin_function(self.plugin, 'shutdown')
         if error:
             return True, None

@@ -35,14 +35,22 @@ class PluginManager:
             return None, error
         return config, None
     def validate_plugin_config(self, config):
-        required_fields = ['name', 'version', 'entry_point', 'functions', 'input_types', 'output_format']
+        required_fields = ['name', 'version', 'input_types', 'output_format']
         for field in required_fields:
             if field not in config:
                 return None, f'missing_required_field_{field}'
-        if 'functions' in config:
+        is_cpp = config.get('language') == 'cpp'
+        if not is_cpp:
+            if 'entry_point' not in config:
+                return None, 'missing_required_field_entry_point'
+            if 'functions' not in config:
+                return None, 'missing_required_field_functions'
             for required_func in pcfg.REQUIRED_FUNCTIONS:
                 if required_func not in config['functions']:
                     return None, f'missing_required_function_{required_func}'
+        else:
+            if 'cpp_wrapper' not in config:
+                return None, 'missing_required_field_cpp_wrapper'
         if config.get('input_types'):
             for input_type in config['input_types']:
                 if input_type not in pcfg.SUPPORTED_INPUT_TYPES:
@@ -61,6 +69,10 @@ class PluginManager:
         plugin_info = discovered[plugin_name]
         plugin_path = plugin_info['path']
         config = plugin_info['config']
+        if config.get('language') == 'cpp':
+            plugin = {'name': plugin_name, 'config': config, 'module': None, 'path': plugin_path}
+            self.plugins[plugin_name] = plugin
+            return plugin, None
         entry_point = config['entry_point']
         module_path = plugin_path / entry_point
         if not module_path.exists():
