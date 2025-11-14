@@ -31,8 +31,8 @@ const SettingsView = {
 
     async loadSettings() {
         try {
-            const data = await API.system.getSettings();
-            this.settings = data || this.getDefaultSettings();
+            const data = await API.system.settings();
+            this.settings = data.settings || this.getDefaultSettings();
         } catch {
             this.settings = this.getDefaultSettings();
         }
