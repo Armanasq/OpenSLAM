@@ -65,7 +65,16 @@ async def load_dataset(data: dict = Body(...)):
     file_count = sum(1 for _ in dataset_path.rglob('*') if _.is_file())
     dir_size = _get_dir_size(dataset_path)
     checksum = hashlib.md5(str(dataset_path).encode()).hexdigest()[:8]
-    datasets[dataset_id] = {'id': dataset_id, 'name': name, 'description': description, 'tags': tags, 'path': str(dataset_path), 'format': fmt, 'structure': structure, 'valid': valid, 'errors': errors, 'status': 'uploaded', 'created': datetime.now().isoformat(), 'updated': datetime.now().isoformat(), 'frames': structure.get('frames', 0) if isinstance(structure, dict) else 0, 'sequences': structure.get('sequences', 0) if isinstance(structure, dict) else 0, 'size': dir_size, 'file_count': file_count, 'checksum': checksum, 'metadata': {}, 'sensors': structure.get('sensors', []) if isinstance(structure, dict) else [], 'ground_truth': structure.get('ground_truth', False) if isinstance(structure, dict) else False, 'processed_path': None, 'preview': None, 'statistics': {}}
+
+    # Generate preview frames immediately (no copying, just reference paths)
+    preview_frames = _get_dataset_frames(dataset_path, fmt, max_frames=5)
+    preview_data = {
+        'frames': preview_frames,
+        'count': len(preview_frames),
+        'urls': [f'/api/dataset/{dataset_id}/frame/{i}' for i in range(len(preview_frames))]
+    } if preview_frames else None
+
+    datasets[dataset_id] = {'id': dataset_id, 'name': name, 'description': description, 'tags': tags, 'path': str(dataset_path), 'format': fmt, 'structure': structure, 'valid': valid, 'errors': errors, 'status': 'uploaded', 'created': datetime.now().isoformat(), 'updated': datetime.now().isoformat(), 'frames': structure.get('frames', 0) if isinstance(structure, dict) else 0, 'sequences': structure.get('sequences', 0) if isinstance(structure, dict) else 0, 'size': dir_size, 'file_count': file_count, 'checksum': checksum, 'metadata': {}, 'sensors': structure.get('sensors', []) if isinstance(structure, dict) else [], 'ground_truth': structure.get('ground_truth', False) if isinstance(structure, dict) else False, 'processed_path': None, 'preview': preview_data, 'statistics': {}}
     _log_activity('created', 'dataset', dataset_id, {'name': name, 'format': fmt})
     await _broadcast_update({'type': 'dataset_created', 'dataset': datasets[dataset_id]})
     return datasets[dataset_id]
@@ -199,9 +208,21 @@ async def get_dataset_preview(dataset_id: str, frame: Optional[int] = Query(0)):
     if dataset_id not in datasets:
         raise HTTPException(404, 'dataset not found')
     ds = datasets[dataset_id]
-    if ds['status'] != 'processed':
-        raise HTTPException(400, 'dataset not processed')
-    return {'dataset_id': dataset_id, 'frame': frame, 'preview_url': f'/api/dataset/{dataset_id}/frame/{frame}', 'total_frames': ds['frames']}
+    preview = ds.get('preview')
+    if not preview or not preview.get('frames'):
+        raise HTTPException(404, 'no preview available for this dataset')
+
+    total_preview_frames = preview['count']
+    if frame < 0 or frame >= total_preview_frames:
+        frame = 0
+
+    return {
+        'dataset_id': dataset_id,
+        'frame': frame,
+        'preview_url': f'/api/dataset/{dataset_id}/frame/{frame}',
+        'total_preview_frames': total_preview_frames,
+        'preview_urls': preview['urls']
+    }
 @app.get('/api/dataset/{dataset_id}/statistics')
 def get_dataset_statistics(dataset_id: str):
     if dataset_id not in datasets:
@@ -504,6 +525,77 @@ def _compute_rankings(runs_list: List[dict]) -> List[dict]:
     for i, item in enumerate(scored):
         item['rank'] = i + 1
     return scored
+
+def _get_dataset_frames(dataset_path: Path, dataset_format: str, max_frames: int = 5):
+    """Get sample frame paths from dataset without copying"""
+    frames = []
+
+    if dataset_format == 'kitti':
+        # KITTI format: sequences/XX/image_0/*.png or image_2/*.png
+        sequences_dir = dataset_path / 'sequences'
+        if sequences_dir.exists():
+            for seq_dir in sorted(sequences_dir.iterdir()):
+                if seq_dir.is_dir():
+                    for img_dir_name in ['image_0', 'image_2', 'image_left']:
+                        img_dir = seq_dir / img_dir_name
+                        if img_dir.exists():
+                            img_files = sorted(img_dir.glob('*.png'))[:max_frames]
+                            frames.extend([str(f) for f in img_files])
+                            if len(frames) >= max_frames:
+                                return frames[:max_frames]
+        # Also check direct image directories
+        for img_dir_name in ['image_0', 'image_2']:
+            img_dir = dataset_path / img_dir_name
+            if img_dir.exists():
+                img_files = sorted(img_dir.glob('*.png'))[:max_frames]
+                frames.extend([str(f) for f in img_files])
+
+    elif dataset_format == 'tum':
+        # TUM format: rgb/*.png
+        rgb_dir = dataset_path / 'rgb'
+        if rgb_dir.exists():
+            img_files = sorted(rgb_dir.glob('*.png'))[:max_frames]
+            frames = [str(f) for f in img_files]
+
+    elif dataset_format == 'euroc':
+        # EuRoC format: mav0/cam0/data/*.png
+        cam_dirs = [dataset_path / 'mav0' / 'cam0' / 'data',
+                    dataset_path / 'mav0' / 'cam1' / 'data']
+        for cam_dir in cam_dirs:
+            if cam_dir.exists():
+                img_files = sorted(cam_dir.glob('*.png'))[:max_frames]
+                frames = [str(f) for f in img_files]
+                if frames:
+                    break
+
+    else:
+        # Custom/unknown format: search for common image extensions
+        for ext in ['*.png', '*.jpg', '*.jpeg']:
+            img_files = list(dataset_path.rglob(ext))[:max_frames]
+            if img_files:
+                frames = [str(f) for f in img_files]
+                break
+
+    return frames[:max_frames]
+
+@app.get('/api/dataset/{dataset_id}/frame/{frame_index}')
+async def get_dataset_frame(dataset_id: str, frame_index: int):
+    """Serve a frame image directly from the dataset path (no copying)"""
+    if dataset_id not in datasets:
+        raise HTTPException(404, 'dataset not found')
+
+    ds = datasets[dataset_id]
+    preview_frames = ds.get('preview', {}).get('frames', [])
+
+    if frame_index < 0 or frame_index >= len(preview_frames):
+        raise HTTPException(404, 'frame index out of range')
+
+    frame_path = Path(preview_frames[frame_index])
+
+    if not frame_path.exists():
+        raise HTTPException(404, 'frame file not found')
+
+    return FileResponse(str(frame_path), media_type='image/png')
 @app.on_event('startup')
 async def startup():
     for d in [UPLOAD_DIR, DATA_DIR, RESULTS_DIR]:
