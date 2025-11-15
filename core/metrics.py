@@ -1,5 +1,5 @@
 import numpy as np
-import openslam_config as cfg
+from config import openslam_config as cfg
 from core.trajectory import extract_positions, extract_rotations
 def compute_ate(estimated_poses, ground_truth_poses):
     if len(estimated_poses) != len(ground_truth_poses):

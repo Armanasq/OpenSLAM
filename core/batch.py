@@ -1,7 +1,7 @@
 import yaml
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import openslam_config as cfg
+from config import openslam_config as cfg
 from core import dataset_loader, trajectory, metrics
 def load_batch_config(config_path):
     config_path = Path(config_path)

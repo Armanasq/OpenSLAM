@@ -2,7 +2,7 @@ import yaml
 import re
 import numpy as np
 from pathlib import Path
-import connector_config as ccfg
+from config import connector_config as ccfg
 
 class ConnectorEngine:
     def __init__(self):

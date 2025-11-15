@@ -1,7 +1,7 @@
 import numpy as np
 import time
 from pathlib import Path
-import plugin_config as pcfg
+from config import plugin_config as pcfg
 from core.plugin_manager import PluginManager
 from core import dataset_loader, metrics
 from core.cpp_slam_wrapper import CPPSLAMWrapper

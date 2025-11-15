@@ -26,3 +26,5 @@ results/
 cache/
 temp/
 uploads/
+logs/
+*.backup

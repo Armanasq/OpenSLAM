@@ -1,5 +1,5 @@
 import numpy as np
-import openslam_config as cfg
+from config import openslam_config as cfg
 TASK_REQUIREMENTS = {'navigation': {'ate_threshold': 0.1, 'rpe_threshold': 0.05, 'update_rate': 10, 'robustness_threshold': 0.95}, 'manipulation': {'ate_threshold': 0.05, 'rpe_threshold': 0.02, 'update_rate': 30, 'robustness_threshold': 0.98}, 'inspection': {'ate_threshold': 0.02, 'rpe_threshold': 0.01, 'update_rate': 5, 'robustness_threshold': 0.90}, 'mapping': {'ate_threshold': 0.15, 'rpe_threshold': 0.08, 'update_rate': 5, 'robustness_threshold': 0.85}}
 def evaluate_task_alignment(metrics, task_type):
     if task_type not in TASK_REQUIREMENTS:

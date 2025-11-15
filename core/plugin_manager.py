@@ -2,8 +2,8 @@ import sys
 import yaml
 import importlib.util
 from pathlib import Path
-import plugin_config as pcfg
-import openslam_config as cfg
+from config import plugin_config as pcfg
+from config import openslam_config as cfg
 class PluginManager:
     def __init__(self, plugin_dir=None):
         self.plugin_dir = Path(plugin_dir) if plugin_dir else Path(pcfg.PLUGIN_DIR)
